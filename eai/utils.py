@@ -1,0 +1,157 @@
+import os
+from enum import Enum
+import importlib
+from web3 import Account
+from loguru import logger
+from typing import List
+
+
+Logger = logger
+Logger.remove()
+Logger.add(
+    lambda msg: print(msg, end=""),
+    format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | "
+    "<level>{level: <8}</level> | "
+    "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - "
+    "<level>{message}</level>",
+    level="INFO",
+    colorize=True
+)
+
+LayerType = Enum('LayerType', [
+    'InputLayer',
+    'Dense',
+    'Flatten',
+    'Rescaling',
+    'MaxPooling2D',
+    'Conv2D',
+    'Embedding',
+    'SimpleRNN',
+    'LSTM',
+    'Softmax',
+    'Sigmoid',
+    'ReLU',
+    'Linear',
+], start=0)
+
+InputType = Enum('InputType', [
+    'Scalar',
+    'Tensor1D',
+    'Tensor2D',
+    'Tensor3D',
+], start=0)
+
+Activation = Enum('Activation', [
+    'leakyrelu',
+    'linear',
+    'relu',
+    'sigmoid',
+    'tanh',
+    'softmax',
+], start=0)
+
+Padding = Enum('Padding', [
+    'valid',
+    'same',
+], start=0)
+
+
+def get_class(module_name, class_name):
+    module = importlib.import_module(module_name)
+    return getattr(module, class_name)
+
+
+def create_web3_account():
+    account = Account.create()
+    return {"address": account.address, "private_key": account._private_key.hex()}
+
+
+def get_env_config():
+    assert os.path.exists(
+        ".env"), ".env file not found, please run command 'eai init --private-key <private_key>' to set up .env file."
+    env_config = {}
+    if os.path.exists(".env"):
+        with open(".env", "r") as f:
+            for line in f.readlines():
+                key, value = line.split("=")
+                env_config[key] = value.strip()
+    return env_config
+
+
+def publisher():
+    if os.path.exists(".env"):
+        with open(".env", "r") as f:
+            for line in f.readlines():
+                key, value = line.split("=")
+                if key == "PRIVATE_KEY":
+                    try:
+                        account = Account.from_key(str(value.strip()))
+                        return account.address
+                    except Exception as e:
+                        Logger.error(f"Invalid private key: {e}")
+                        return None
+    else:
+        Logger.warning(
+            ".env file not found, please run command 'eai init --private-key <private_key>' to set up .env file.")
+    return None
+
+
+def get_abi_type(dim_count: int) -> str:
+    if dim_count == 1:
+        return "int64[]"
+    if dim_count == 2:
+        return "int64[][]"
+    if dim_count == 3:
+        return "int64[][][]"
+    if dim_count == 4:
+        return "int64[][][][]"
+    raise Exception("Number of dimension not supported")
+
+
+def getLayerType(name: str) -> int:
+    try:
+        return LayerType[name]
+    except:
+        logger.warning(f'Layer type not found: {name}')
+        raise Exception("Layer type not found")
+
+
+def getActivationType(name: str) -> int:
+    try:
+        return Activation[name]
+    except:
+        logger.warning(f'Activation function type not found: {name}')
+        raise Exception("Activation function type not found")
+
+
+def getPaddingType(name: str) -> int:
+    try:
+        return Padding[name]
+    except:
+        logger.warning(f'Padding type not found: {name}')
+        raise Exception("Padding type not found")
+
+
+def getConvSize(dim: List[int], size: List[int], stride: List[int], padding: str):
+    out = []
+    pad = []
+    for i in range(dim):
+        if padding == "same":
+            out.append((dim[i] + stride[i] - 1) // stride[i])
+            total_pad = max(size[i] - stride[i], 0) if (dim[i] %
+                                                        stride[i] == 0) else max(size[i] - dim[i] % stride[i], 0)
+            pad.append(total_pad // 2)
+        elif padding == "valid":
+            out.append((dim[i] - size[i]) // stride[i] + 1)
+            pad.append(0)
+    return {out, pad}
+
+
+def fromFloat(num: float):
+    return int(num * pow(2, 32))
+
+
+def index_last(arr, item):
+    for r_idx, elt in enumerate(reversed(arr)):
+        if elt == item:
+            return len(arr) - 1 - r_idx
