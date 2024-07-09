@@ -17,6 +17,7 @@ def parse_args():
         choices=[
             'version',
             'set-private-key',
+            'set-node-endpoint',
             'publish',
         ],
         help="primary command to run eai"
@@ -26,6 +27,12 @@ def parse_args():
         action='store',
         type=str,
         help="private key for on-chain deployment"
+    )
+    parser.add_argument(
+        "--node-endpoint",
+        action='store',  
+        type=str,
+        help="node endpoint for on-chain deployment"
     )
     parser.add_argument(
         "--model",
@@ -60,13 +67,30 @@ def set_private_key(**kwargs):
         private_key = account['private_key']
     Logger.info("Setting private key ...")
     env_config = {
-        "PRIVATE_KEY": private_key
+        "PRIVATE_KEY": private_key,
     }
     with open(ENV_PATH, "w") as f:
         for key, value in env_config.items():
             f.write(f"{key}={value}\n")
             os.environ[key] = str(value)
     Logger.success("Private key set successfully.")
+
+def set_node_endpoint(**kwargs):
+    if kwargs['node-endpoint'] is None:
+        Logger.error("node-endpoint is not provided.")
+        sys.exit(2)
+    Logger.info("Setting node endpoint ...")
+    if not os.path.exists(ENV_PATH):
+        Logger.error("private-key is not set, please set private-key first by using command 'eai set-private-key'")
+        sys.exit(2)
+    env_config = {
+        "NODE_ENDPOINT": kwargs['node-endpoint'],
+    }
+    with open(ENV_PATH, "a") as f:
+        for key, value in env_config.items():
+            f.write(f"{key}={value}\n")
+            os.environ[key] = str(value)
+    Logger.success("Node endpoint set successfully.")
 
 
 def publish_model(**kwargs):
@@ -106,6 +130,12 @@ def main():
             'private-key': known_args.private_key,
         }
         set_private_key(**args)
+    elif known_args.command == 'set-node-endpoint':
+        # update configurations
+        args = {
+            'node-endpoint': known_args.node_endpoint,
+        }
+        set_node_endpoint(**args)
     elif known_args.command == "publish":
         # export model to json
         args = {

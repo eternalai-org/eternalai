@@ -9,6 +9,7 @@ import keras
 import json
 import os
 from eai.model import EAIModel
+from eai.data import NODE_ENDPOINT
 from eai.deployer import ModelDeployer
 from eai.exporter import ModelExporter
 import importlib
@@ -86,7 +87,7 @@ def publish(model: keras.Model, model_name: str = "Unnamed Model") -> EAIModel:
 
 def predict(model_address: str, inputs: List[np.ndarray]) -> np.ndarray:
     from eai.artifacts.models.FunctionalModel import CONTRACT_ARTIFACT
-    w3 = Web3(Web3.HTTPProvider(os.environ["NODE_ENDPOINT"]))
+    w3 = Web3(Web3.HTTPProvider(NODE_ENDPOINT))
     contract_abi = CONTRACT_ARTIFACT['abi']
     model_contract = w3.eth.contract(address=model_address, abi=contract_abi)
     input_tensors = list(map(lambda x: TensorData.from_numpy(x), inputs))

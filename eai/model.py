@@ -1,3 +1,5 @@
+import json
+
 class EAIModel:
     def __init__(self, metadata: dict):
         assert "model_address" in metadata, "model_address is required for EAIModel object"
@@ -31,7 +33,6 @@ class EAIModel:
         return self.model_address
 
     def to_json(self, output_path):
-        import json
         metadata = {
             "model_address": self.model_address,
             "price": self.price,
