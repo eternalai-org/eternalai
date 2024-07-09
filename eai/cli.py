@@ -1,11 +1,11 @@
 import os
 import sys
-import json
 import argparse
 import tensorflow as tf
-from eai.data import ENDPOINTS
 from eai.version import __version__
-from eai.utils import Logger, create_web3_account
+from eai.utils import Logger, ENV_PATH
+from eai.utils import create_web3_account
+from eai.func import publish
 
 
 def parse_args():
@@ -16,9 +16,8 @@ def parse_args():
         type=str,
         choices=[
             'version',
-            'init',
-            'update',
-            'export-model',
+            'set-private-key',
+            'publish',
         ],
         help="primary command to run eai"
     )
@@ -29,104 +28,48 @@ def parse_args():
         help="private key for on-chain deployment"
     )
     parser.add_argument(
-        "--endpoint-domain",
-        action='store',
-        default="mainnet",
-        choices=ENDPOINTS.keys(),
-        type=str,
-        help="endpoint domain for on-chain deployment",
-    )
-    parser.add_argument(
-        "--model-inference-cost",
-        action='store',
-        default=0,
-        type=float,
-        help="model inference cost"
-    )
-    parser.add_argument(
-        "--chunk-len",
-        action='store',
-        default=30000,
-        type=int,
-        help="chunk length for model deployment"
-    )
-    parser.add_argument(
         "--model",
         action='store',
         type=str,
         help="path to the model"
     )
     parser.add_argument(
-        "--vocabulary",
+        "--name",
         action='store',
-        default=None,
+        default="Unnamed Model",
         type=str,
-        help="path to the vocabulary file"
     )
     parser.add_argument(
-        "--outputs-dir",
+        "--output-path",
         action='store',
-        default='outputs',
+        default='output.json',
         type=str,
-        help="path to the output directory"
+        help="path to save metadata after publishing model"
     )
     return parser.parse_known_args()
 
 
-def initialize(**kwargs):
-    if not os.path.exists(".env"):
-        Logger.info("Creating .env file ...")
-    else:
-        Logger.error(
-            ".env file already exists. Please use 'eai update' command to update .env file.")
-        sys.exit(2)
-    if kwargs['private-key'] is None:
-        Logger.info("private key not provided, creating new account ...")
+def set_private_key(**kwargs):
+    private_key = kwargs['private-key']
+    if private_key is None:
+        Logger.warning(
+            "private-key is not provided, it will be automatically generated.")
         account = create_web3_account()
-        kwargs['private-key'] = account["private_key"]
-        Logger.success(
-            f"Account created successfully.\nPrivate key: {account['private_key']}.\nAddress: {account['address']}.")
-
-    endpoints = ENDPOINTS[kwargs['endpoint-domain']]
+        Logger.success(f"Private key: {account['private_key']}")
+        Logger.success(f"Address: {account['address']}")
+        private_key = account['private_key']
+    Logger.info("Setting private key ...")
     env_config = {
-        "PRIVATE_KEY": kwargs['private-key'],
-        "NODE_ENDPOINT": endpoints["node-endpoint"],
-        "REGISTER_DOMAIN": endpoints["register-domain"],
-        "MODEL_INFERENCE_COST": kwargs["model-inference-cost"],
-        "CHUNK_LEN":  kwargs["chunk-len"],
+        "PRIVATE_KEY": private_key
     }
-    with open(".env", "w") as f:
+    with open(ENV_PATH, "w") as f:
         for key, value in env_config.items():
             f.write(f"{key}={value}\n")
-    Logger.success(f".env file created successfully.")
+            os.environ[key] = str(value)
+    Logger.success("Private key set successfully.")
 
 
-def update(**kwargs):
-    if not os.path.exists(".env"):
-        Logger.error(
-            ".env file not found. Please use 'eai init' command to create .env file.")
-        sys.exit(2)
-    else:
-        if kwargs['private-key'] is None:
-            Logger.error(
-                "private key not provided. Please provide private key to update .env file.")
-            sys.exit(2)
-        Logger.info("Updating .env file ...")
-        endpoints = ENDPOINTS[kwargs['endpoint-domain']]
-        env_config = {
-            "PRIVATE_KEY": kwargs['private-key'],
-            "NODE_ENDPOINT": endpoints["node-endpoint"],
-            "REGISTER_DOMAIN": endpoints["register-domain"],
-            "MODEL_INFERENCE_COST": kwargs["model-inference-cost"],
-            "CHUNK_LEN":  kwargs["chunk-len"],
-        }
-        with open(".env", "w") as f:
-            for key, value in env_config.items():
-                f.write(f"{key}={value}\n")
-        Logger.success(".env file updated successfully.")
-
-
-def export_model(**kwargs):
+def publish_model(**kwargs):
     """
     init the configurations for EternalAI Builder
     """
@@ -135,14 +78,16 @@ def export_model(**kwargs):
         Logger.warning(
             '--model must be provided for command "eai export-model"')
         sys.exit(2)
-    vocab = None
-    if kwargs['vocabulary'] is not None:
-        with open(kwargs['vocabulary'], 'r') as fid:
-            vocab = json.load(fid)
-    model = tf.keras.models.load_model(kwargs['model'])
-    from eai.exporter import ModelExporter
-    ModelExporter().export_model(model, vocabulary=vocab,
-                                 output_dir=kwargs['outputs_dir'])
+    try:
+        model = tf.keras.models.load_model(kwargs['model'])
+        model.summary()
+    except Exception as e:
+        Logger.error(f"Failed to load model: {e}")
+        sys.exit(2)
+    eai_model = publish(model, kwargs['name'])
+    eai_model.to_json(kwargs['output_path'])
+    Logger.success(
+        f"Model published successfully, metadata saved to {kwargs['output_path']}")
 
 
 @Logger.catch
@@ -155,32 +100,20 @@ def main():
     # handle different primaryc commands
     if known_args.command == "version":
         Logger.success(f"✨ EternalAI Toolkit - Version: {__version__} ✨")
-    elif known_args.command == 'init':
-        # initialization
-        args = {
-            'private-key': known_args.private_key,
-            'endpoint-domain': known_args.endpoint_domain,
-            'model-inference-cost': known_args.model_inference_cost,
-            'chunk-len': known_args.chunk_len,
-        }
-        initialize(**args)
-    elif known_args.command == 'update':
+    elif known_args.command == 'set-private-key':
         # update configurations
         args = {
             'private-key': known_args.private_key,
-            'endpoint-domain': known_args.endpoint_domain,
-            'model-inference-cost': known_args.model_inference_cost,
-            'chunk-len': known_args.chunk_len,
         }
-        update(**args)
-    elif known_args.command == "export-model":
+        set_private_key(**args)
+    elif known_args.command == "publish":
         # export model to json
         args = {
             'model': known_args.model,
-            'vocabulary': known_args.vocabulary,
-            'outputs_dir': known_args.outputs_dir
+            'name': known_args.name,
+            'output_path': known_args.output_path,
         }
-        export_model(**args)
+        publish_model(**args)
 
 
 if (__name__ == "__main__"):

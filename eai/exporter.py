@@ -2,7 +2,8 @@ import os
 import json
 import struct
 import base64
-from eai.utils import get_class, Logger
+import importlib
+from eai.utils import Logger
 
 
 class ModelExporter:
@@ -78,7 +79,8 @@ class ModelExporter:
             }
             try:
                 # Get the layer class and its configuration
-                layer_class = get_class("eai.layers", class_name)(layer_config)
+                module = importlib.import_module("eai.layers")
+                layer_class = getattr(module, class_name)(layer_config)
                 layer_config = layer_class.get_layer_config()
                 Logger.success(f"Layer {class_name} exported")
             except:
@@ -120,7 +122,8 @@ class ModelExporter:
             with open(output_path, "w") as f:
                 json.dump(graph, f)
             Logger.success(f"Model graph exported to {output_path}.")
-        Logger.success("Model graph exported.")
+        else:
+            Logger.success("Model graph exported.")
         return graph
 
     def _export_weights(self, model, output_path=None):
@@ -180,7 +183,10 @@ class ModelExporter:
             model, vocabulary, model_graph_path)
         # Export the weights
         weights = self._export_weights(model, weights_path)
-        Logger.success(f"Model exported successfully at {output_dir}.")
+        if output_dir is not None:
+            Logger.success(f"Model exported successfully at {output_dir}.")
+        else:
+            Logger.success("Model exported successfully.")
         return {
             "model_graph": model_graph,
             "weights": weights

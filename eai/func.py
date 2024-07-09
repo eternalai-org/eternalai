@@ -1,17 +1,17 @@
-import os
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-import json
-import keras
-import requests
-import numpy as np
-from web3 import Web3
-from eai.utils import Logger, get_class, LayerType
-from eai.artifact import CONTRACT_ARTIFACT
-from eth_abi import encode, decode
+from eai.utils import publisher, get_abi_type
 from typing import List
-from eai.exporter import ModelExporter
+from eth_abi import encode, decode
+from eai.utils import Logger, LayerType
+from web3 import Web3
+import numpy as np
+import requests
+import keras
+import json
+import os
+from eai.model import EAIModel
 from eai.deployer import ModelDeployer
-from eai.utils import publisher, get_env_config, get_abi_type
+from eai.exporter import ModelExporter
+import importlib
 
 
 class TensorData:
@@ -37,11 +37,9 @@ class TensorData:
 
 def register(model_addr, model_name, owner):
     Logger.info("Registering model ...")
-
     try:
-        env_config = get_env_config()
         endpoint = os.path.join(
-            env_config["REGISTER_DOMAIN"], "api/dojo/register-model")
+            os.environ["REGISTER_DOMAIN"], "api/dojo/register-model")
         headers = {"Content-Type": "application/json"}
         data = {
             "model_address": model_addr,
@@ -63,7 +61,9 @@ def register(model_addr, model_name, owner):
         Logger.error(f"An unexpected error occurred: {e}")
 
 
-def publish(model: keras.Model, model_name: str = "Unnamed Model") -> str:
+def publish(model: keras.Model, model_name: str = "Unnamed Model") -> EAIModel:
+    import time
+    start = time.time()
     assert isinstance(model, keras.Model), "Model must be a keras model"
     try:
         model_data = ModelExporter().export_model(model)
@@ -76,13 +76,17 @@ def publish(model: keras.Model, model_name: str = "Unnamed Model") -> str:
         Logger.error(f"Failed to deploy model: {e}")
         return None
     address = contract.address
-    register(address, model_name, publisher())
-    return address
+    # register(address, model_name, publisher())
+    eai_model = EAIModel(
+        {"model_address": address, "name": model_name, "publisher": publisher()})
+    Logger.success(
+        f"Model published successfully. Time taken: {time.time() - start} seconds")
+    return eai_model
 
 
 def predict(model_address: str, inputs: List[np.ndarray]) -> np.ndarray:
-    env_config = get_env_config()
-    w3 = Web3(Web3.HTTPProvider(env_config["NODE_ENDPOINT"]))
+    from eai.artifacts.models.FunctionalModel import CONTRACT_ARTIFACT
+    w3 = Web3(Web3.HTTPProvider(os.environ["NODE_ENDPOINT"]))
     contract_abi = CONTRACT_ARTIFACT['abi']
     model_contract = w3.eth.contract(address=model_address, abi=contract_abi)
     input_tensors = list(map(lambda x: TensorData.from_numpy(x), inputs))
@@ -94,6 +98,7 @@ def predict(model_address: str, inputs: List[np.ndarray]) -> np.ndarray:
 
 def check(model: keras.Model):
     assert isinstance(model, keras.Model), "Model must be a keras model"
+
     try:
         model_data = json.loads(model.to_json())
     except Exception as e:
@@ -101,16 +106,25 @@ def check(model: keras.Model):
         return
 
     Logger.info("Checking model layers ...")
+    supported_layers = 0
+    unsupported_layers = 0
 
-    for layer in model_data.get("config", {}).get("layers", []):
+    for idx, layer in enumerate(model_data.get("config", {}).get("layers", [])):
         class_name = layer.get("class_name", "Unknown")
-
+        layer_config = layer.get("config", {})
         try:
-            get_class("eai.layers", class_name)
-            Logger.success(f"Layer {class_name} with configuration supported.")
+            module = importlib.import_module("eai.layers")
+            layer_class = getattr(module, class_name)(layer_config)
+            Logger.success(
+                f"{idx}: Layer {class_name} with this configuration could be deployed to Eternal AI chain.")
+            supported_layers += 1
         except Exception as e:
             Logger.error(
-                f"Layer {class_name} with configuration not supported.")
+                f"{idx}: Layer {class_name} with this configuration could not be deployed to Eternal AI chain.")
+            unsupported_layers += 1
+
+    Logger.info(
+        f"Summary: {supported_layers} layers supported, {unsupported_layers} layers not supported.")
 
 
 def layers():

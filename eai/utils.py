@@ -1,10 +1,9 @@
 import os
+import sys
 from enum import Enum
-import importlib
 from web3 import Account
 from loguru import logger
 from typing import List
-
 
 Logger = logger
 Logger.remove()
@@ -17,6 +16,7 @@ Logger.add(
     level="INFO",
     colorize=True
 )
+
 
 LayerType = Enum('LayerType', [
     'InputLayer',
@@ -56,44 +56,16 @@ Padding = Enum('Padding', [
 ], start=0)
 
 
-def get_class(module_name, class_name):
-    module = importlib.import_module(module_name)
-    return getattr(module, class_name)
-
-
 def create_web3_account():
     account = Account.create()
     return {"address": account.address, "private_key": account._private_key.hex()}
 
 
-def get_env_config():
-    assert os.path.exists(
-        ".env"), ".env file not found, please run command 'eai init --private-key <private_key>' to set up .env file."
-    env_config = {}
-    if os.path.exists(".env"):
-        with open(".env", "r") as f:
-            for line in f.readlines():
-                key, value = line.split("=")
-                env_config[key] = value.strip()
-    return env_config
-
-
 def publisher():
-    if os.path.exists(".env"):
-        with open(".env", "r") as f:
-            for line in f.readlines():
-                key, value = line.split("=")
-                if key == "PRIVATE_KEY":
-                    try:
-                        account = Account.from_key(str(value.strip()))
-                        return account.address
-                    except Exception as e:
-                        Logger.error(f"Invalid private key: {e}")
-                        return None
-    else:
-        Logger.warning(
-            ".env file not found, please run command 'eai init --private-key <private_key>' to set up .env file.")
-    return None
+    private_key = os.environ.get("PRIVATE_KEY", None)
+    if private_key is None:
+        return None
+    return Account.from_key(private_key).address
 
 
 def get_abi_type(dim_count: int) -> str:
@@ -155,3 +127,12 @@ def index_last(arr, item):
     for r_idx, elt in enumerate(reversed(arr)):
         if elt == item:
             return len(arr) - 1 - r_idx
+
+
+def get_script_path():
+    if hasattr(sys, 'frozen'):
+        return os.path.dirname(sys.executable)
+    return os.path.dirname(os.path.realpath(__file__))
+
+
+ENV_PATH = os.path.join(get_script_path(), ".env")

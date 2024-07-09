@@ -17,9 +17,29 @@ To check if the installation was successful, run the following command:
 eai version
 ```
 
-## Usage
+## Setting your Private Key
 
-### Exporting Your Model
+To set or create your private key, run the following command in your terminal:
+
+```bash
+eai set-private-key --private-key YOUR_PRIVATE_KEY
+```
+
+***Notes***:
+- The `--private-key` parameter is **optional**. If not provided, a new private key will be automatically generated.
+
+## Exporting Your Model Using the Command Line
+
+```bash
+eai publish --model PATH_TO_MODEL --name MODEL_NAME --output-path OUTPUT_PATH
+```
+
+***Notes***: 
+- The `--model` parameter is **required** and should be the path to your model file. It should be a `.keras` or `.h5` file.
+- The `--name` parameter is **optional** and should be the name of your model.
+- The `--output-path` parameter is **optional** and should be the path to save the published model metadata file.
+
+## Exporting Your Model Using Python
 
 0. Build or load your AI model using the Keras framework. This is an example of Lenet5 model:
     ```python
@@ -50,39 +70,28 @@ eai version
     model.summary()
     ```
 
-1. Create or Update Your Private Key:
-    Run the following command in your terminal to set or create your private key:
-    ```bash
-    eai init --private-key YOUR_PRIVATE_KEY
-    ```
-    *Note: The `private_key` parameter is optional. If not provided, a new private key will be automatically generated and saved in the `.env` file.*
-    To update your private key if you already have a `.env` file, run:
-    ```bash
-    eai update --private-key YOUR_PRIVATE_KEY
-    ```
-2. Check Your Model Layers and EAI Supported Layers:
+1. Check Your Model Layers and EAI Supported Layers:
     Use the following Python code to check your model’s layers and ensure they are supported by EAI:
     ```python
     import eai
     eai.check(model)
     ```
 
-3. Save Your Model On-Chain:
+2. Save Your Model On-Chain:
     Save your trained Keras model on-chain using the following code:
     ```python
     import eai
-    model_address = eai.publish(model, model_name="lenet5")
-    ```
+    eai_model = eai.publish(model, model_name="lenet5")
+    ``` 
     *Note: Ensure your model is a Keras model and has been trained before saving it on-chain.*
-4. Call Your Model On-Chain:
+    
+3. Call Your Model On-Chain:
     ```python
-    import eai
-    output = eai.predict(model_address, input)
+    address = eai_model.get_address()
+    output = eai.predict(address, input)
     ```
     *Note: Ensure your `input` is preprocessed to match the model’s expected input format.*
     
-
-
 # Need help?
 
 Join our community at [https://eternalai.org/](https://eternalai.org/)

@@ -1,10 +1,5 @@
-ENDPOINTS = {
-    "testnet": {
-        "node-endpoint": "https://eternal-ai3.tc.l2aas.com/rpc",
-        "register-domain": "https://api-dojo.dev2.eternalai.org"
-    },
-    "mainnet": {
-        "node-endpoint": "https://node.eternalai.org",
-        "register-domain": "https://api-dojo2.eternalai.org",
-    }
-}
+NODE_ENDPOINT = "https://node.eternalai.org"
+REGISTER_DOMAIN = "https://api-dojo2.eternalai.org"
+GAS_LIMIT = 99_000_000
+MODEL_INFERENCE_COST = 0
+CHUNK_LEN = 1000

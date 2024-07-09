@@ -1,30 +1,41 @@
+import os
 from web3 import Web3
 from web3 import Account
 from eth_abi import encode
 from typing import List, Tuple
 from web3.contract import Contract
-from eai.artifact import CONTRACT_ARTIFACT
-from eai.utils import get_env_config, fromFloat, index_last, getLayerType, getActivationType, getPaddingType
+from eai.utils import fromFloat, index_last, getLayerType, getActivationType, getPaddingType
 from eai.utils import Logger as logger, LayerType, InputType
 from web3.middleware import construct_sign_and_send_raw_middleware
+import eai.artifacts.models.FunctionalModel
+import importlib
+from eai.data import GAS_LIMIT, NODE_ENDPOINT, CHUNK_LEN
+from eai.utils import fromFloat, index_last, getLayerType, getActivationType, getPaddingType
 
 
-class LayerConfig:
-    def __init__(self, layerType: LayerType, configData: str, inputIndices: List[int]):
+class LayerData:
+    def __init__(self, layerType: LayerType, layerName: str, configData: str, inputIndices: List[int]):
         self.layerType = layerType
+        self.layerName = layerName
         self.configData = configData
         self.inputIndices = inputIndices
 
+
+class LayerConfig:
+    def __init__(self, layerType: LayerType, layerAddress: str, inputIndices: List[int]):
+        self.layerType = layerType
+        self.layerAddress = layerAddress
+        self.inputIndices = inputIndices
+
     def toContractParams(self):
-        return (self.layerType.value, self.configData, self.inputIndices)
+        return (self.layerType.value, self.layerAddress, self.inputIndices)
 
 
 class ModelDeployer():
     def __init__(self):
-        env_config = get_env_config()
-        self.w3 = Web3(Web3.HTTPProvider(env_config["NODE_ENDPOINT"]))
-        self.private_key = env_config["PRIVATE_KEY"]
-        self.chunk_len = int(env_config['CHUNK_LEN'])
+        self.w3 = Web3(Web3.HTTPProvider(NODE_ENDPOINT))
+        self.private_key = os.environ["PRIVATE_KEY"]
+        self.chunk_len = CHUNK_LEN
         try:
             self.address = Account.from_key(self.private_key).address
             self.w3.middleware_onion.add(
@@ -35,8 +46,8 @@ class ModelDeployer():
 
     def deploy_from_artifact(self) -> type[Contract]:
         assert self.private_key is not None, "Private key is required to deploy contract, please run command 'eai init' to set private key"
-        contract_abi = CONTRACT_ARTIFACT['abi']
-        contract_bytecode = CONTRACT_ARTIFACT['bytecode']
+        contract_abi = eai.artifacts.models.FunctionalModel.CONTRACT_ARTIFACT['abi']
+        contract_bytecode = eai.artifacts.models.FunctionalModel.CONTRACT_ARTIFACT['bytecode']
 
         tx_hash = self.w3.eth.contract(abi=contract_abi, bytecode=contract_bytecode).constructor().transact({
             "from": self.address,
@@ -49,8 +60,8 @@ class ModelDeployer():
             address=contract_address, abi=contract_abi)
         return model_contract
 
-    def get_model_config(self, layers) -> Tuple[List[LayerConfig], int]:
-        layerConfigs = []
+    def get_model_config(self, layers) -> Tuple[List[LayerData], int]:
+        layersData = []
         totalWeights = 0
         for i in range(len(layers)):
             layer = layers[i]
@@ -170,16 +181,18 @@ class ModelDeployer():
                                     activationFn.value, recActivationFn.value, units, inputUnits])
                 totalWeights += inputUnits * units * 4 + units * units * 4 + units * 4
 
-            layerConfigs.append(LayerConfig(
+            layersData.append(LayerData(
                 layerType,
+                layer['class_name'],
                 configData,
                 inputIndices,
             ))
 
-        return layerConfigs, totalWeights
+        return layersData, totalWeights
 
     def uploadModelWeights(self, model: type[Contract], weights: List[float]):
         assert self.private_key is not None, "Private key is required to deploy contract, please run command 'eai init' to set private key"
+        logger.info("Uploading weights...")
         logger.info(
             f'Weights size: {len(weights)}, total length: {len(weights) * 32} bytes')
         txIdx = 0
@@ -188,7 +201,7 @@ class ModelDeployer():
                 map(fromFloat, weights[l: l + self.chunk_len]))
             appendWeightTxHash = model.functions.appendWeights(weightsToUpload).transact({
                 "from": self.address,
-                "gas": 10_000_000_000
+                "gas": GAS_LIMIT
             })
             logger.info(f'Appending weights #{txIdx}...')
             receipt = self.w3.eth.wait_for_transaction_receipt(
@@ -196,6 +209,27 @@ class ModelDeployer():
             logger.success(
                 f'tx: {appendWeightTxHash.hex()}, gas used: {receipt.gasUsed}.')
             txIdx += 1
+        logger.success("Weights uploaded successfully.")
+
+    def deploy_layer(self, layer_data: LayerData) -> LayerConfig:
+        artifact_name = layer_data.layerName
+        if not artifact_name.endswith("Layer"):
+            artifact_name += "Layer"
+        submodule = importlib.import_module(
+            f"eai.artifacts.layers.{artifact_name}")
+        artifact = getattr(submodule, "CONTRACT_ARTIFACT")
+        tx_hash = self.w3.eth.contract(abi=artifact['abi'], bytecode=artifact['bytecode']).constructor(layer_data.configData).transact({
+            "from": self.address,
+        })
+        receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
+        contract_address = receipt['contractAddress']
+        logger.info(
+            f'Layer {layer_data.layerName} has been deployed to address {contract_address}, tx={tx_hash.hex()}.')
+        return LayerConfig(
+            layer_data.layerType,
+            contract_address,
+            layer_data.inputIndices,
+        )
 
     def deploy_model(self, model_data):
         assert self.private_key is not None, "Private key is required to deploy contract, please run command 'eai init' to set private key"
@@ -205,21 +239,26 @@ class ModelDeployer():
         logger.info("Deploying FunctionalModel contract...")
         contract = self.deploy_from_artifact()
         logger.info(f'Contract address: {contract.address}')
-        layerConfigs, totalWeights = self.get_model_config(layers)
-        logger.info("Constructing model...")
+        layersData, totalWeights = self.get_model_config(layers)
+
+        logger.info("Deploying layer contracts...")
+        layerConfigs = []
+        for data in layersData:
+            config = self.deploy_layer(data)
+            layerConfigs.append(config)
+
         layerConfigParams = list(
             map(lambda x: x.toContractParams(), layerConfigs))
 
+        logger.info("Constructing model...")
         constructModelTxHash = contract.functions.constructModel(layerConfigParams).transact({
             "from": self.address,
-            "gas": 10_000_000_000
+            "gas": GAS_LIMIT
         })
         receipt = self.w3.eth.wait_for_transaction_receipt(
             constructModelTxHash)
         logger.success(
             f'tx: {constructModelTxHash.hex()}, gas used: {receipt.gasUsed}.')
-        logger.info("Uploading weights...")
         self.uploadModelWeights(contract, weights)
-        logger.success("Weights uploaded.")
         logger.success("Model deployed at address: " + contract.address)
         return contract
