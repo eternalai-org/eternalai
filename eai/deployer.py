@@ -9,7 +9,7 @@ from eai.utils import Logger as logger, LayerType, InputType
 from web3.middleware import construct_sign_and_send_raw_middleware
 import eai.artifacts.models.FunctionalModel
 import importlib
-from eai.data import GAS_LIMIT, NODE_ENDPOINT, CHUNK_LEN
+from eai.data import GAS_LIMIT, CHUNK_LEN
 from eai.utils import fromFloat, index_last, getLayerType, getActivationType, getPaddingType
 
 
@@ -33,7 +33,7 @@ class LayerConfig:
 
 class ModelDeployer():
     def __init__(self):
-        self.w3 = Web3(Web3.HTTPProvider(NODE_ENDPOINT))
+        self.w3 = Web3(Web3.HTTPProvider(os.environ["NODE_ENDPOINT"]))
         self.private_key = os.environ["PRIVATE_KEY"]
         self.chunk_len = CHUNK_LEN
         try:

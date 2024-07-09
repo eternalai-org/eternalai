@@ -30,7 +30,7 @@ def parse_args():
     )
     parser.add_argument(
         "--node-endpoint",
-        action='store',  
+        action='store',
         type=str,
         help="node endpoint for on-chain deployment"
     )
@@ -68,6 +68,7 @@ def set_private_key(**kwargs):
     Logger.info("Setting private key ...")
     env_config = {
         "PRIVATE_KEY": private_key,
+        "NODE_ENDPOINT": os.environ.get("NODE_ENDPOINT", "https://node.eternalai.org")
     }
     with open(ENV_PATH, "w") as f:
         for key, value in env_config.items():
@@ -75,18 +76,21 @@ def set_private_key(**kwargs):
             os.environ[key] = str(value)
     Logger.success("Private key set successfully.")
 
+
 def set_node_endpoint(**kwargs):
     if kwargs['node-endpoint'] is None:
         Logger.error("node-endpoint is not provided.")
         sys.exit(2)
     Logger.info("Setting node endpoint ...")
     if not os.path.exists(ENV_PATH):
-        Logger.error("private-key is not set, please set private-key first by using command 'eai set-private-key'")
+        Logger.error(
+            "private-key is not set, please set private-key first by using command 'eai set-private-key'")
         sys.exit(2)
     env_config = {
+        "PRIVATE_KEY": os.environ["PRIVATE_KEY"],
         "NODE_ENDPOINT": kwargs['node-endpoint'],
     }
-    with open(ENV_PATH, "a") as f:
+    with open(ENV_PATH, "w") as f:
         for key, value in env_config.items():
             f.write(f"{key}={value}\n")
             os.environ[key] = str(value)

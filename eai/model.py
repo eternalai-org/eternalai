@@ -1,5 +1,6 @@
 import json
 
+
 class EAIModel:
     def __init__(self, metadata: dict):
         assert "model_address" in metadata, "model_address is required for EAIModel object"

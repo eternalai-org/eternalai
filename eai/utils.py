@@ -136,4 +136,3 @@ def get_script_path():
 
 
 ENV_PATH = os.path.join(get_script_path(), ".env")
-print(ENV_PATH)
