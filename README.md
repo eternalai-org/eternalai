@@ -26,7 +26,7 @@ eai set-private-key -p YOUR_PRIVATE_KEY
 ```
 
 ***Notes***:
-- The `--private-key` parameter is **optional**. If not provided, a new private key will be automatically generated.
+- The `-p` parameter means private key, and it is **optional**. If you don't provide a private key, the system will generate one and save it in `.env` file.
 
 ## Exporting Your Model Using the Command Line
 
@@ -35,9 +35,9 @@ eai publish -m PATH_TO_MODEL -name MODEL_NAME -o OUTPUT_PATH
 ```
 
 ***Notes***: 
-- The `--model` parameter is **required** and should be the path to your model file. It should be a `.keras` or `.h5` file.
-- The `--name` parameter is **optional** and should be the name of your model.
-- The `--output-path` parameter is **optional** and should be the path to save the published model metadata file.
+- The `-m` parameter means the path to your model file, and it is **required**. If you don't provide a model path, the system will throw an error.
+- The `-n` parameter means the name of your model, and it is **optional**. If you don't provide a model name, the system will use default name as ``unknowned name``.
+- The `-o` parameter means the output path of your model metadata file, and it is **optional**. If you don't provide an output path, the system will output at ``output.json``.
 
 ## Exporting Your Model Using Python
 

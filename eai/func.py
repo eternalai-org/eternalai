@@ -78,11 +78,11 @@ def check(model: keras.Model):
             module = importlib.import_module("eai.layers")
             layer_class = getattr(module, class_name)(layer_config)
             Logger.success(
-                f"{idx}: Layer {class_name} with this configuration could be deployed to Eternal AI chain.")
+                f"{idx}: Layer {class_name}")
             supported_layers += 1
         except Exception as e:
             Logger.error(
-                f"{idx}: Layer {class_name} with this configuration could not be deployed to Eternal AI chain.")
+                f"{idx}: Layer {class_name}")
             unsupported_layers += 1
 
     Logger.info(
