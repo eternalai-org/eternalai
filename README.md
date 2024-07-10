@@ -77,20 +77,27 @@ eai publish -m PATH_TO_MODEL -name MODEL_NAME -o OUTPUT_PATH
     eai.check(model)
     ```
 
-2. Save Your Model On-Chain or Load from an real Address:
-    Save your trained Keras model on-chain using the following code:
+2. Save Your Model On-Chain or Load from a Real Address
+    ## Save Your Trained Keras Model On-Chain
+    You can save your trained Keras model on-chain using the eai library with the following code:
     ```python
     import eai
+
+    # Replace 'model' with your trained Keras model and provide a model name
     eai_model = eai.publish(model, model_name="lenet5")
     ``` 
-    or
+    ## Load Your Model from an On-Chain Address
+    To load a model from an on-chain address, use the EAIModel class from the eai.model module:
     ```python
     from eai.model import EAIModel
+
+    # Create an instance of EAIModel
     eai_model = EAIModel()
+
+    # Replace '0xYOUR_ADDRESS' with the actual on-chain address of your model
     eai_model.load("0xYOUR_ADDRESS")
     ```
-    *Note: Ensure your model is a Keras model and has been trained before saving it on-chain.*
-    
+    *Note: Make sure to replace `0xYOUR_ADDRESS` with the real address of your model on-chain.*
 3. Call Your Model On-Chain:
     ```python
     output = eai_model.predict(input)
