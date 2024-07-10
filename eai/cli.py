@@ -18,36 +18,42 @@ def parse_args():
             'version',
             'set-private-key',
             'set-node-endpoint',
+            'set-register-endpoint',
             'publish',
         ],
         help="primary command to run eai"
     )
     parser.add_argument(
         "--private-key",
+        "-p",
         action='store',
         type=str,
         help="private key for on-chain deployment"
     )
     parser.add_argument(
         "--node-endpoint",
+        "-node",
         action='store',
         type=str,
         help="node endpoint for on-chain deployment"
     )
     parser.add_argument(
         "--model",
+        "-m",
         action='store',
         type=str,
         help="path to the model"
     )
     parser.add_argument(
         "--name",
+        "-name",
         action='store',
         default="Unnamed Model",
         type=str,
     )
     parser.add_argument(
         "--output-path",
+        "-o",
         action='store',
         default='output.json',
         type=str,
@@ -68,7 +74,8 @@ def set_private_key(**kwargs):
     Logger.info("Setting private key ...")
     env_config = {
         "PRIVATE_KEY": private_key,
-        "NODE_ENDPOINT": os.environ.get("NODE_ENDPOINT", "https://node.eternalai.org")
+        "NODE_ENDPOINT": os.environ.get("NODE_ENDPOINT", "https://node.eternalai.org"),
+        "REGISTER_ENDPOINT": os.environ.get("REGISTER_ENDPOINT", "https://api-dojo2.eternalai.org/api/dojo/register-model")
     }
     with open(ENV_PATH, "w") as f:
         for key, value in env_config.items():
@@ -88,6 +95,7 @@ def set_node_endpoint(**kwargs):
         sys.exit(2)
     env_config = {
         "PRIVATE_KEY": os.environ["PRIVATE_KEY"],
+        "REGISTER_ENDPOINT": os.environ["REGISTER_ENDPOINT"],
         "NODE_ENDPOINT": kwargs['node-endpoint'],
     }
     with open(ENV_PATH, "w") as f:
@@ -95,6 +103,27 @@ def set_node_endpoint(**kwargs):
             f.write(f"{key}={value}\n")
             os.environ[key] = str(value)
     Logger.success("Node endpoint set successfully.")
+
+
+def set_register_endpoint(**kwargs):
+    if kwargs['register-endpoint'] is None:
+        Logger.error("register-endpoint is not provided.")
+        sys.exit(2)
+    Logger.info("Setting register endpoint ...")
+    if not os.path.exists(ENV_PATH):
+        Logger.error(
+            "private-key is not set, please set private-key first by using command 'eai set-private-key'")
+        sys.exit(2)
+    env_config = {
+        "PRIVATE_KEY": os.environ["PRIVATE_KEY"],
+        "NODE_ENDPOINT": os.environ["NODE_ENDPOINT"],
+        "REGISTER_ENDPOINT": kwargs['register-endpoint'],
+    }
+    with open(ENV_PATH, "w") as f:
+        for key, value in env_config.items():
+            f.write(f"{key}={value}\n")
+            os.environ[key] = str(value)
+    Logger.success("Register endpoint set successfully.")
 
 
 def publish_model(**kwargs):
@@ -115,7 +144,7 @@ def publish_model(**kwargs):
     eai_model = publish(model, kwargs['name'])
     eai_model.to_json(kwargs['output_path'])
     Logger.success(
-        f"Model published successfully, metadata saved to {kwargs['output_path']}")
+        f"Model published successfully, metadata saved to {kwargs['output_path']}.")
 
 
 @Logger.catch
@@ -148,6 +177,12 @@ def main():
             'output_path': known_args.output_path,
         }
         publish_model(**args)
+    elif known_args.command == "set-register-endpoint":
+        # update configurations
+        args = {
+            'register-endpoint': known_args.register_endpoint,
+        }
+        set_register_endpoint(**args)
 
 
 if (__name__ == "__main__"):

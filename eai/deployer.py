@@ -198,13 +198,15 @@ class ModelDeployer():
         for l in range(0, len(weights), self.chunk_len):
             weightsToUpload = list(
                 map(fromFloat, weights[l: l + self.chunk_len]))
+            logger.info(f'Appending weights #{txIdx}...')
             appendWeightTxHash = model.functions.appendWeights(weightsToUpload).transact({
                 "from": self.address,
                 "gas": GAS_LIMIT
             })
-            logger.info(f'Appending weights #{txIdx}...')
             receipt = self.w3.eth.wait_for_transaction_receipt(
                 appendWeightTxHash)
+            if receipt['status'] != 1:
+                raise Exception('tx failed', receipt)
             logger.success(
                 f'tx: {appendWeightTxHash.hex()}, gas used: {receipt.gasUsed}.')
             txIdx += 1
@@ -221,6 +223,8 @@ class ModelDeployer():
             "from": self.address,
         })
         receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
+        if receipt['status'] != 1:
+            raise Exception('tx failed', receipt)
         contract_address = receipt['contractAddress']
         logger.info(
             f'Layer {layer_data.layerName} has been deployed to address {contract_address}, tx={tx_hash.hex()}.')
@@ -256,6 +260,8 @@ class ModelDeployer():
         })
         receipt = self.w3.eth.wait_for_transaction_receipt(
             constructModelTxHash)
+        if receipt['status'] != 1:
+            raise Exception('tx failed', receipt)
         logger.success(
             f'tx: {constructModelTxHash.hex()}, gas used: {receipt.gasUsed}.')
         self.uploadModelWeights(contract, weights)

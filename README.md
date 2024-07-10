@@ -22,7 +22,7 @@ eai version
 To set or create your private key, run the following command in your terminal:
 
 ```bash
-eai set-private-key --private-key YOUR_PRIVATE_KEY
+eai set-private-key -p YOUR_PRIVATE_KEY
 ```
 
 ***Notes***:
@@ -31,7 +31,7 @@ eai set-private-key --private-key YOUR_PRIVATE_KEY
 ## Exporting Your Model Using the Command Line
 
 ```bash
-eai publish --model PATH_TO_MODEL --name MODEL_NAME --output-path OUTPUT_PATH
+eai publish -m PATH_TO_MODEL -name MODEL_NAME -o OUTPUT_PATH
 ```
 
 ***Notes***: 
@@ -77,18 +77,23 @@ eai publish --model PATH_TO_MODEL --name MODEL_NAME --output-path OUTPUT_PATH
     eai.check(model)
     ```
 
-2. Save Your Model On-Chain:
+2. Save Your Model On-Chain or Load from an real Address:
     Save your trained Keras model on-chain using the following code:
     ```python
     import eai
     eai_model = eai.publish(model, model_name="lenet5")
     ``` 
+    or
+    ```python
+    from eai.model import EAIModel
+    eai_model = EAIModel()
+    eai_model.load("0xYOUR_ADDRESS")
+    ```
     *Note: Ensure your model is a Keras model and has been trained before saving it on-chain.*
     
 3. Call Your Model On-Chain:
     ```python
-    address = eai_model.get_address()
-    output = eai.predict(address, input)
+    output = eai_model.predict(input)
     ```
     *Note: Ensure your `input` is preprocessed to match the model’s expected input format.*
     
