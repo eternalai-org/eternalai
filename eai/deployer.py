@@ -41,8 +41,7 @@ class ModelDeployer():
             self.w3.middleware_onion.add(
                 construct_sign_and_send_raw_middleware(self.private_key))
         except Exception as e:
-            logger.error(f"Invalid private key: {e}")
-            raise Exception("Invalid private key")
+            raise Exception(f"Failed to initialize deployer: {e}")
 
     def deploy_from_artifact(self) -> type[Contract]:
         assert self.private_key is not None, "Private key is required to deploy contract, please run command 'eai init' to set private key"

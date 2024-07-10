@@ -9,10 +9,11 @@ import keras
 import json
 import os
 from eai.model import EAIModel
-from eai.data import REGISTER_DOMAIN
+from eai.data import REGISTER_ENDPOINT
 from eai.deployer import ModelDeployer
 from eai.exporter import ModelExporter
 import importlib
+from eai.artifacts.models.FunctionalModel import CONTRACT_ARTIFACT
 
 
 class TensorData:
@@ -39,8 +40,6 @@ class TensorData:
 def register(model_addr, model_name, owner):
     Logger.info("Registering model ...")
     try:
-        endpoint = os.path.join(
-            REGISTER_DOMAIN, "api/dojo/register-model")
         headers = {"Content-Type": "application/json"}
         data = {
             "model_address": model_addr,
@@ -48,7 +47,7 @@ def register(model_addr, model_name, owner):
             "owner_address": owner
         }
 
-        response = requests.post(endpoint, headers=headers, json=data)
+        response = requests.post(REGISTER_ENDPOINT, headers=headers, json=data)
         response.raise_for_status()  # Raises an HTTPError for bad responses (4xx or 5xx)
 
         if response.json().get("status") == 1:
@@ -86,7 +85,6 @@ def publish(model: keras.Model, model_name: str = "Unnamed Model") -> EAIModel:
 
 
 def predict(model_address: str, inputs: List[np.ndarray]) -> np.ndarray:
-    from eai.artifacts.models.FunctionalModel import CONTRACT_ARTIFACT
     w3 = Web3(Web3.HTTPProvider(os.environ["NODE_ENDPOINT"]))
     contract_abi = CONTRACT_ARTIFACT['abi']
     model_contract = w3.eth.contract(address=model_address, abi=contract_abi)
