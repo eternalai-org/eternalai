@@ -8,7 +8,7 @@ This repository guides EAI users in deploying their AI models on-chain.
 To get started, install the EAI package using the following command:
 
 ```bash
-pip install git+https://github.com/eternalai-org/eternalai.git@v1.0.0
+pip install git+https://github.com/eternalai-org/eternalai.git@v1.0.1
 ```
 
 To check if the installation was successful, run the following command:
