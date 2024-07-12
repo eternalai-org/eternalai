@@ -1,5 +1,7 @@
 import os
 import sys
+import json
+import hashlib
 from enum import Enum
 from web3 import Account
 from loguru import logger
@@ -127,6 +129,17 @@ def index_last(arr, item):
     for r_idx, elt in enumerate(reversed(arr)):
         if elt == item:
             return len(arr) - 1 - r_idx
+        
+def hash_dict(d):
+    # Convert the dictionary to a JSON string, ensuring the keys are sorted
+    dict_str = json.dumps(d, sort_keys=True)
+    # Encode the string to bytes
+    dict_bytes = dict_str.encode()
+    # Create a hash object using the hashlib module (e.g., SHA-256)
+    hash_object = hashlib.sha256(dict_bytes)
+    # Get the hexadecimal digest of the hash
+    hash_hex = hash_object.hexdigest()
+    return str(hash_hex)
 
 
 def get_script_path():

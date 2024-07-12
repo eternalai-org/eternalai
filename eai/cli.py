@@ -18,7 +18,7 @@ def parse_args():
             'version',
             'set-private-key',
             'set-node-endpoint',
-            'set-register-endpoint',
+            'set-backend-domain',
             'publish',
         ],
         help="primary command to run eai"
@@ -36,6 +36,13 @@ def parse_args():
         action='store',
         type=str,
         help="node endpoint for on-chain deployment"
+    )
+    parser.add_argument(
+        "--backend-domain",
+        "-b",
+        action='store',
+        type=str,
+        help="domain for calling backend APIs"
     )
     parser.add_argument(
         "--model",
@@ -75,7 +82,7 @@ def set_private_key(**kwargs):
     env_config = {
         "PRIVATE_KEY": private_key,
         "NODE_ENDPOINT": os.environ.get("NODE_ENDPOINT", "https://node.eternalai.org"),
-        "REGISTER_ENDPOINT": os.environ.get("REGISTER_ENDPOINT", "https://api-dojo2.eternalai.org/api/dojo/register-model")
+        "BACKEND_DOMAIN": os.environ.get("BACKEND_DOMAIN", "https://api-dojo2.eternalai.org/api/dojo")
     }
     with open(ENV_PATH, "w") as f:
         for key, value in env_config.items():
@@ -95,7 +102,7 @@ def set_node_endpoint(**kwargs):
         sys.exit(2)
     env_config = {
         "PRIVATE_KEY": os.environ["PRIVATE_KEY"],
-        "REGISTER_ENDPOINT": os.environ["REGISTER_ENDPOINT"],
+        "BACKEND_DOMAIN": os.environ["BACKEND_DOMAIN"],
         "NODE_ENDPOINT": kwargs['node-endpoint'],
     }
     with open(ENV_PATH, "w") as f:
@@ -105,11 +112,11 @@ def set_node_endpoint(**kwargs):
     Logger.success("Node endpoint set successfully.")
 
 
-def set_register_endpoint(**kwargs):
-    if kwargs['register-endpoint'] is None:
-        Logger.error("register-endpoint is not provided.")
+def set_backend_domain(**kwargs):
+    if kwargs['backend-domain'] is None:
+        Logger.error("backend-domain is not provided.")
         sys.exit(2)
-    Logger.info("Setting register endpoint ...")
+    Logger.info("Setting backend-domain ...")
     if not os.path.exists(ENV_PATH):
         Logger.error(
             "private-key is not set, please set private-key first by using command 'eai set-private-key'")
@@ -117,13 +124,13 @@ def set_register_endpoint(**kwargs):
     env_config = {
         "PRIVATE_KEY": os.environ["PRIVATE_KEY"],
         "NODE_ENDPOINT": os.environ["NODE_ENDPOINT"],
-        "REGISTER_ENDPOINT": kwargs['register-endpoint'],
+        "BACKEND_DOMAIN": kwargs['backend-domain'],
     }
     with open(ENV_PATH, "w") as f:
         for key, value in env_config.items():
             f.write(f"{key}={value}\n")
             os.environ[key] = str(value)
-    Logger.success("Register endpoint set successfully.")
+    Logger.success("Backend domain set successfully.")
 
 
 def publish_model(**kwargs):
@@ -177,12 +184,12 @@ def main():
             'output_path': known_args.output_path,
         }
         publish_model(**args)
-    elif known_args.command == "set-register-endpoint":
+    elif known_args.command == "set-backend-domain":
         # update configurations
         args = {
-            'register-endpoint': known_args.register_endpoint,
+            'backend-domain': known_args.backend_domain,
         }
-        set_register_endpoint(**args)
+        set_backend_domain(**args)
 
 
 if (__name__ == "__main__"):

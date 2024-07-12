@@ -1,38 +1,11 @@
-from eai.utils import publisher, get_abi_type
+from eai.utils import publisher
 from eai.utils import Logger, LayerType
-import requests
 import keras
 import json
-import os
 from eai.model import EAIModel
 from eai.deployer import ModelDeployer
 from eai.exporter import ModelExporter
 import importlib
-
-
-def register(model_addr, model_name, owner):
-    Logger.info("Registering model ...")
-    try:
-        headers = {"Content-Type": "application/json"}
-        data = {
-            "model_address": model_addr,
-            "model_name": model_name,
-            "owner_address": owner
-        }
-
-        response = requests.post(
-            os.environ["REGISTER_ENDPOINT"], headers=headers, json=data)
-        response.raise_for_status()  # Raises an HTTPError for bad responses (4xx or 5xx)
-
-        if response.json().get("status") == 1:
-            Logger.success("Model registered successfully.")
-        else:
-            Logger.error("Failed to register model. Response status not 1.")
-
-    except requests.exceptions.RequestException as e:
-        Logger.error(f"Failed to send request to register model: {e}")
-    except Exception as e:
-        Logger.error(f"An unexpected error occurred: {e}")
 
 
 def publish(model: keras.Model, model_name: str = "Unnamed Model") -> EAIModel:
@@ -50,15 +23,15 @@ def publish(model: keras.Model, model_name: str = "Unnamed Model") -> EAIModel:
         Logger.error(f"Failed to deploy model: {e}")
         return None
     address = contract.address
-    register(address, model_name, publisher())
-    eai_model = EAIModel(
-        {"model_address": address, "name": model_name, "publisher": publisher()})
+    eai_model = EAIModel(**{"address": address, 
+                            "name": model_name, 
+                            "owner": publisher()})
+    eai_model.register()
     Logger.success(
         f"Model published successfully. Time taken: {time.time() - start} seconds")
     return eai_model
 
-
-def check(model: keras.Model):
+def check_keras_model(model: keras.Model):
     assert isinstance(model, keras.Model), "Model must be a keras model"
 
     try:
@@ -70,6 +43,7 @@ def check(model: keras.Model):
     Logger.info("Checking model layers ...")
     supported_layers = 0
     unsupported_layers = 0
+    error_layers = []
 
     for idx, layer in enumerate(model_data.get("config", {}).get("layers", [])):
         class_name = layer.get("class_name", "Unknown")
@@ -81,13 +55,28 @@ def check(model: keras.Model):
                 f"{idx}: Layer {class_name}")
             supported_layers += 1
         except Exception as e:
-            Logger.error(
-                f"{idx}: Layer {class_name}")
+            if class_name not in error_layers:
+                Logger.error(
+                    f"{idx}: Layer {class_name}")
+                error_layers.append(class_name)
             unsupported_layers += 1
 
     Logger.info(
         f"Summary: {supported_layers} layers supported, {unsupported_layers} layers not supported.")
 
+def check(model):
+    if isinstance(model, keras.Model):
+        Logger.info(
+            "Model is a keras model. Checking model layers ...")
+        check_keras_model(model)
 
+    elif isinstance(model, str):
+        Logger.info(f"Loading model from {model} ...")
+        try:
+            model = keras.models.load_model(model)
+            Logger.success("Model loaded successfully.")
+        except Exception as e:
+            raise Exception(f"Failed to load model: {e}")
+    
 def layers():
     return list(LayerType.__members__.keys())
