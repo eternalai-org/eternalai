@@ -30,7 +30,7 @@ class ModelExporter:
                 for idx, input_shape in enumerate(inputs):
                     node = inbound_nodes[0]
                     inbound_node_data = {"args": [], "kwargs": {}}
-                    args = node[0][idx]
+                    args = node[idx]
                     inbound_node_data["args"].append({
                         "name": args[0],
                         "idx": layer_indices.index(args[0]),
@@ -38,11 +38,12 @@ class ModelExporter:
                     })
                     ret.append(inbound_node_data)
             else:
-                node = inbound_nodes[0][0]
+                node = inbound_nodes[0]
                 inbound_node_data = {"kwargs": {}, "args": []}
+                args = node[0]
                 inbound_node_data["args"].append({
-                    "name": node[0],
-                    "idx": layer_indices.index(node[0]),
+                    "name": args[0],
+                    "idx": layer_indices.index(args[0]),
                     "shape": inputs
                 })
                 ret.append(inbound_node_data)

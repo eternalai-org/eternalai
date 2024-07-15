@@ -225,7 +225,6 @@ class ModelDeployer():
         artifact_name = layer_data.layerName
 
         if not artifact_name.endswith("Layer"):
-            print(artifact_name)
             artifact_name += "Layer"
         submodule = importlib.import_module(
             f"eai.artifacts.layers.{artifact_name}")
