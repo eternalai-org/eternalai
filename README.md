@@ -17,6 +17,12 @@ To check if the installation was successful, run the following command:
 eai version
 ```
 
+***Note: This repository uses Keras3 framework by default If you want to downgrade to Keras2, you can run the following command:***
+
+```bash
+pip install tensorflow==2.15.1
+``` 
+
 ## Setting your Private Key
 
 To set or create your private key, run the following command in your terminal:
@@ -36,7 +42,7 @@ eai publish -m PATH_TO_MODEL -name MODEL_NAME -o OUTPUT_PATH
 
 ***Notes***: 
 - The `-m` parameter means the path to your model file, and it is **required**. If you don't provide a model path, the system will throw an error.
-- The `-n` parameter means the name of your model, and it is **optional**. If you don't provide a model name, the system will use default name as ``unknowned name``.
+- The `-name` parameter means the name of your model, and it is **optional**. If you don't provide a model name, the system will use default name as ``unknowned name``.
 - The `-o` parameter means the output path of your model metadata file, and it is **optional**. If you don't provide an output path, the system will output at ``output.json``.
 
 ## Exporting Your Model Using Python

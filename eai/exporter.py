@@ -10,9 +10,47 @@ class ModelExporter:
     def __init__(self):
         pass
 
-    def _export_inbound_nodes(self, layer, layer_indices):
+    def _export_inbound_nodes_keras2(self, layer, layer_indices):
         """
         Export inbound nodes of a given layer.
+
+        Args:
+            layer (dict): The layer configuration.
+            layer_indices (list): List of layer names.
+
+        Returns:
+            list: List of inbound node data for Keras 2.
+        """
+        ret = []
+        build_config = layer.get("build_config", {"input_shape": []}) 
+        inbound_nodes = layer["inbound_nodes"]
+        inputs = build_config["input_shape"]
+        if len(inputs) > 1:
+            if isinstance(inputs[0], list):
+                for input_shape in inputs:
+                    node = inbound_nodes[0]
+                    inbound_node_data = {"args": [], "kwargs": {}}
+                    for args in node[0]:
+                        inbound_node_data["args"].append({
+                            "name": node[0],
+                            "idx": layer_indices.index(node[0]),
+                            "shape": inputs
+                        })
+                    ret.append(inbound_node_data)
+            else:
+                node = inbound_nodes[0][0]
+                inbound_node_data = {"kwargs": {}, "args": []}
+                inbound_node_data["args"].append({
+                    "name": node[0],
+                    "idx": layer_indices.index(node[0]),
+                    "shape": inputs
+                })
+                ret.append(inbound_node_data)
+        return ret
+    
+    def _export_inbound_nodes_keras3(self, layer, layer_indices):
+        """
+        Export inbound nodes of a given layer for Keras 3.
 
         Args:
             layer (dict): The layer configuration.
@@ -22,30 +60,32 @@ class ModelExporter:
             list: List of inbound node data.
         """
         ret = []
+        build_config = layer.get("build_config", {"input_shape": []}) 
         inbound_nodes = layer["inbound_nodes"]
-        for node in inbound_nodes:
-            inbound_node_data = {"args": [], "kwargs": node["kwargs"]}
-            for idx, args in enumerate(node["args"]):
-                if isinstance(args, dict):
-                    config = args["config"]
-                    inbound_node_data["args"].append({
-                        "name": config["keras_history"][0],
-                        "idx": layer_indices.index(config["keras_history"][0]),
-                        "shape": config["shape"],
-                    })
-                elif isinstance(args, float):
-                    inbound_node_data["args"].append(args)
-                elif isinstance(args, list):
-                    for arg in args:
-                        config = arg["config"]
+        inputs = build_config["input_shape"]
+        if len(inputs) > 1:
+            if isinstance(inputs[0], list):
+                for input_shape in inputs:
+                    node = inbound_nodes[0]
+                    inbound_node_data = {"args": [], "kwargs": node["kwargs"]}
+                    for args in node['args'][0]:
                         inbound_node_data["args"].append({
-                            "name": config["keras_history"][0],
-                            "idx": layer_indices.index(config["keras_history"][0]),
-                            "shape": config["shape"],
+                            "name": args['config']["keras_history"][0],
+                            "idx": layer_indices.index(args['config']["keras_history"][0]),
+                            "shape": input_shape
                         })
-                else:
-                    raise Exception("Inbound node args not supported")
-            ret.append(inbound_node_data)
+                    ret.append(inbound_node_data)
+            else:
+                node = inbound_nodes[0]
+                inbound_node_data = {"args": [], "kwargs": node["kwargs"]}
+                for args in node['args']:
+                    inbound_node_data["args"].append({
+                        "name": args['config']["keras_history"][0],
+                        "idx": layer_indices.index(args['config']["keras_history"][0]),
+                        "shape": inputs
+                    })
+                ret.append(inbound_node_data)
+    
         return ret
 
     def _export_model_graph(self, model, vocabulary=None, output_path=None):
@@ -89,9 +129,15 @@ class ModelExporter:
             data["layer_config"] = layer_config
             layer_indices.append(layer_name)
             if model_data["class_name"] == "Functional":
-                # Export inbound nodes for Functional model
-                data["inbound_nodes"] = self._export_inbound_nodes(
-                    layer, layer_indices)
+                keras_version = importlib.import_module("keras").__version__
+                if keras_version.startswith("2."):
+                    data["inbound_nodes"] = self._export_inbound_nodes_keras2(
+                        layer, layer_indices)
+                elif keras_version.startswith("3."):
+                    data["inbound_nodes"] = self._export_inbound_nodes_keras3(
+                        layer, layer_indices)
+                else:
+                    raise Exception("Keras version not supported")
             elif model_data["class_name"] == "Sequential":
                 if idx == 0:
                     data["inbound_nodes"] = []

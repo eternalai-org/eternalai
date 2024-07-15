@@ -1,7 +1,11 @@
 class InputLayer:
     def __init__(self, cfg):
-        assert "batch_shape" in cfg, "batch_input_shape is required for InputLayer"
-        self.batch_input_shape = cfg["batch_shape"]
+        if "batch_shape" in cfg:
+            self.batch_input_shape = cfg["batch_shape"]
+        elif "batch_input_shape" in cfg:
+            self.batch_input_shape = cfg["batch_input_shape"]
+        else:
+            raise Exception("batch_shape or batch_input_shape is required for InputLayer")
 
     def get_layer_config(self):
         return {"batch_input_shape": self.batch_input_shape}
@@ -149,3 +153,4 @@ class Flatten:
 
     def get_layer_config(self):
         return {}
+        

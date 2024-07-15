@@ -196,8 +196,12 @@ class ModelDeployer():
     def uploadModelWeights(self, model: type[Contract], weights: List[float], start_idx: int = 0):
         logger.info(
             f'Weights size: {len(weights)}, total length: {len(weights) * 32} bytes')
-        logger.info(f"Uploading weights from index {start_idx} ...")
         txIdx = 0
+        for l in range(0, start_idx, self.chunk_len):
+            logger.success(
+                f'Appending weights #{txIdx} has already been done...')
+            txIdx += 1
+        logger.info(f"Uploading weights from index {start_idx} ...")
         for l in range(start_idx, len(weights), self.chunk_len):
             weightsToUpload = list(
                 map(fromFloat, weights[l: l + self.chunk_len]))
