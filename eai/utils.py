@@ -2,10 +2,10 @@ import os
 import sys
 import json
 import hashlib
-from enum import Enum
 from web3 import Account
 from loguru import logger
 from typing import List
+from eai.layer_config import LayerType, Activation, Padding
 
 Logger = logger
 Logger.remove()
@@ -18,44 +18,6 @@ Logger.add(
     level="INFO",
     colorize=True
 )
-
-
-LayerType = Enum('LayerType', [
-    'InputLayer',
-    'Dense',
-    'Flatten',
-    'Rescaling',
-    'MaxPooling2D',
-    'Conv2D',
-    'Embedding',
-    'SimpleRNN',
-    'LSTM',
-    'Softmax',
-    'Sigmoid',
-    'ReLU',
-    'Linear',
-], start=0)
-
-InputType = Enum('InputType', [
-    'Scalar',
-    'Tensor1D',
-    'Tensor2D',
-    'Tensor3D',
-], start=0)
-
-Activation = Enum('Activation', [
-    'leakyrelu',
-    'linear',
-    'relu',
-    'sigmoid',
-    'tanh',
-    'softmax',
-], start=0)
-
-Padding = Enum('Padding', [
-    'valid',
-    'same',
-], start=0)
 
 
 def create_web3_account():

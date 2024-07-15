@@ -153,4 +153,11 @@ class Flatten:
 
     def get_layer_config(self):
         return {}
+    
+class Add:
+    def __init__(self, cfg):
+        pass
+
+    def get_layer_config(self):
+        return {}
         

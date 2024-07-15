@@ -27,15 +27,15 @@ class ModelExporter:
         inputs = build_config["input_shape"]
         if len(inputs) > 1:
             if isinstance(inputs[0], list):
-                for input_shape in inputs:
+                for idx, input_shape in enumerate(inputs):
                     node = inbound_nodes[0]
                     inbound_node_data = {"args": [], "kwargs": {}}
-                    for args in node[0]:
-                        inbound_node_data["args"].append({
-                            "name": node[0],
-                            "idx": layer_indices.index(node[0]),
-                            "shape": inputs
-                        })
+                    args = node[0][idx]
+                    inbound_node_data["args"].append({
+                        "name": args[0],
+                        "idx": layer_indices.index(args[0]),
+                        "shape": input_shape
+                    })
                     ret.append(inbound_node_data)
             else:
                 node = inbound_nodes[0][0]
@@ -65,15 +65,15 @@ class ModelExporter:
         inputs = build_config["input_shape"]
         if len(inputs) > 1:
             if isinstance(inputs[0], list):
-                for input_shape in inputs:
+                for idx, input_shape in enumerate(inputs):
                     node = inbound_nodes[0]
                     inbound_node_data = {"args": [], "kwargs": node["kwargs"]}
-                    for args in node['args'][0]:
-                        inbound_node_data["args"].append({
-                            "name": args['config']["keras_history"][0],
-                            "idx": layer_indices.index(args['config']["keras_history"][0]),
-                            "shape": input_shape
-                        })
+                    args = node['args'][0][idx]
+                    inbound_node_data["args"].append({
+                        "name": args['config']["keras_history"][0],
+                        "idx": layer_indices.index(args['config']["keras_history"][0]),
+                        "shape": input_shape
+                    })
                     ret.append(inbound_node_data)
             else:
                 node = inbound_nodes[0]

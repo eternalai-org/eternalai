@@ -5,7 +5,7 @@ import tensorflow as tf
 from eai.version import __version__
 from eai.utils import Logger, ENV_PATH
 from eai.utils import create_web3_account
-from eai.func import publish
+from eai.func import publish, check
 
 
 def parse_args():
@@ -20,6 +20,7 @@ def parse_args():
             'set-node-endpoint',
             'set-backend-domain',
             'publish',
+            'check'
         ],
         help="primary command to run eai"
     )
@@ -153,6 +154,18 @@ def publish_model(**kwargs):
     Logger.success(
         f"Model published successfully, metadata saved to {kwargs['output_path']}.")
 
+def check_model(**kwargs):
+    """
+    check the model for deployment
+    """
+    response = {}
+    Logger.info("Checking model for deployment ...")
+    if kwargs['model'] is None:
+        Logger.warning(
+            '--model must be provided for command "eai check"')
+        sys.exit(2)
+    check(kwargs['model'], kwargs['output_path'])   
+
 
 @Logger.catch
 def main():
@@ -190,6 +203,12 @@ def main():
             'backend-domain': known_args.backend_domain,
         }
         set_backend_domain(**args)
+    elif known_args.command == "check":
+        args = {
+            'model': known_args.model,
+            'output_path': known_args.output_path,
+        }
+        check_model(**args)
 
 
 if (__name__ == "__main__"):

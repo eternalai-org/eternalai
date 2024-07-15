@@ -38,9 +38,6 @@ class EAIModel:
         self.name = kwargs.get("name", "unnamed model")
         self.owner = kwargs.get("owner", None)
 
-    def _get_publisher(self):
-        return None
-
     def set_price(self, price: float):
         self.price = price
 
@@ -54,7 +51,7 @@ class EAIModel:
         return self.name
 
     def get_publisher(self):
-        return self.publisher
+        return self.owner
     
     def load(self, address):
         self.address = address

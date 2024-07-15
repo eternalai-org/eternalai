@@ -6,7 +6,8 @@ from web3 import Account
 from eth_abi import encode
 from typing import List, Tuple
 from web3.contract import Contract
-from eai.utils import Logger as logger, LayerType, InputType
+from eai.utils import Logger as logger
+from eai.layer_config import LayerType, InputType
 from web3.middleware import construct_sign_and_send_raw_middleware
 import importlib
 from eai.data import GAS_LIMIT, CHUNK_LEN
@@ -74,7 +75,6 @@ class ModelDeployer():
             logger.info(f"Layer {i}: {layer['class_name']}, type: {layerType}")
             inputIndices = list(
                 map(lambda node: node['args'][0]['idx'], layer['inbound_nodes']))
-
             if layerType == LayerType.Dense:
                 inputNode = layer['inbound_nodes'][0]['args'][0]
                 inputUnits = inputNode['shape'][1]
@@ -102,6 +102,8 @@ class ModelDeployer():
             elif layerType == LayerType.Sigmoid:
                 configData = encode([], [])
             elif layerType == LayerType.Linear:
+                configData = encode([], [])
+            elif layerType == LayerType.Add:
                 configData = encode([], [])
             elif layerType == LayerType.InputLayer:
                 dim = layer['layer_config']['batch_input_shape']
@@ -223,6 +225,7 @@ class ModelDeployer():
         artifact_name = layer_data.layerName
 
         if not artifact_name.endswith("Layer"):
+            print(artifact_name)
             artifact_name += "Layer"
         submodule = importlib.import_module(
             f"eai.artifacts.layers.{artifact_name}")

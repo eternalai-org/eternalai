@@ -31,7 +31,7 @@ def publish(model: keras.Model, model_name: str = "Unnamed Model") -> EAIModel:
         f"Model published successfully. Time taken: {time.time() - start} seconds")
     return eai_model
 
-def check_keras_model(model: keras.Model):
+def check_keras_model(model: keras.Model, output_path: str = None):
     assert isinstance(model, keras.Model), "Model must be a keras model"
 
     try:
@@ -61,22 +61,47 @@ def check_keras_model(model: keras.Model):
                 error_layers.append(class_name)
             unsupported_layers += 1
 
+    if len(error_layers) > 0:
+        response = {
+            "status": -1,
+            "error": []
+        }
+        for error_layer in error_layers:
+            response["error"].append(f"Layer {error_layer} is not supported")
+        with open(output_path, "w") as f:
+            json.dump(response, f)
+    else:
+        response = {
+            "status": 1
+        }
+        with open(output_path, "w") as f:
+            json.dump(response, f)
+
     Logger.info(
         f"Summary: {supported_layers} layers supported, {unsupported_layers} layers not supported.")
 
-def check(model):
+def check(model, output_path = None):
     if isinstance(model, keras.Model):
         Logger.info(
             "Model is a keras model. Checking model layers ...")
-        check_keras_model(model)
-
+        check_keras_model(model, output_path)
     elif isinstance(model, str):
         Logger.info(f"Loading model from {model} ...")
         try:
             model = keras.models.load_model(model)
             Logger.success("Model loaded successfully.")
         except Exception as e:
+            response = {
+                "status": -1,
+                "error": str(e)
+            }
+            with open(output_path, "w") as f:
+                json.dump(response, f)
             raise Exception(f"Failed to load model: {e}")
-    
+        check_keras_model(model, output_path)
+    else:
+        raise Exception("Model must be a keras model or a path to a keras model")
+        
+
 def layers():
     return list(LayerType.__members__.keys())
