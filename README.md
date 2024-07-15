@@ -17,7 +17,7 @@ To check if the installation was successful, run the following command:
 eai version
 ```
 
-***Note: This repository uses Keras3 framework by default If you want to downgrade to Keras2, you can run the following command:***
+***Note: This repository uses Keras3 framework by default. If you want to downgrade to Keras2, you can run the following command:***
 
 ```bash
 pip install tensorflow==2.15.1
