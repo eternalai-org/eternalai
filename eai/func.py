@@ -6,11 +6,14 @@ from eai.model import EAIModel
 from eai.deployer import ModelDeployer
 from eai.exporter import ModelExporter
 import importlib
+from typing import Union
 
 
-def publish(model: keras.Model, model_name: str = "Unnamed Model") -> EAIModel:
+def publish(model: Union[keras.Model, str], model_name: str = "Unnamed Model") -> EAIModel:
     import time
     start = time.time()
+    if isinstance(model, str):
+        model = keras.models.load_model(model)
     assert isinstance(model, keras.Model), "Model must be a keras model"
     try:
         model_data = ModelExporter().export_model(model)
@@ -33,7 +36,6 @@ def publish(model: keras.Model, model_name: str = "Unnamed Model") -> EAIModel:
 
 def check_keras_model(model: keras.Model, output_path: str = None):
     assert isinstance(model, keras.Model), "Model must be a keras model"
-
     try:
         model_data = json.loads(model.to_json())
     except Exception as e:
@@ -60,25 +62,26 @@ def check_keras_model(model: keras.Model, output_path: str = None):
                     f"{idx}: Layer {class_name}")
                 error_layers.append(class_name)
             unsupported_layers += 1
-
+    response = {
+        "status": 1
+    }
     if len(error_layers) > 0:
-        response = {
-            "status": -1,
-            "error": []
-        }
+        response["status"] = -1
+        response["error"] = []
         for error_layer in error_layers:
             response["error"].append(f"Layer {error_layer} is not supported")
-        with open(output_path, "w") as f:
-            json.dump(response, f)
+        if output_path is not None:
+            with open(output_path, "w") as f:
+                json.dump(response, f)
     else:
-        response = {
-            "status": 1
-        }
-        with open(output_path, "w") as f:
-            json.dump(response, f)
+        if output_path is not None:
+            with open(output_path, "w") as f:
+                json.dump(response, f)
 
     Logger.info(
         f"Summary: {supported_layers} layers supported, {unsupported_layers} layers not supported.")
+    return response
+    
 
 def check(model, output_path = None):
     if isinstance(model, keras.Model):

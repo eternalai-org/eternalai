@@ -138,6 +138,18 @@ class ModelDeployer():
                     [s_w, s_h],
                     getPaddingType(padding).value,
                 ])
+            elif layerType == LayerType.AveragePooling2D:
+                f_w = layer['layer_config']['pool_size'][0]
+                f_h = layer['layer_config']['pool_size'][1]
+                s_w = layer['layer_config']['strides'][0]
+                s_h = layer['layer_config']['strides'][1]
+                padding = layer['layer_config']['padding']
+
+                configData = encode(["uint[2]", "uint[2]", "uint8"], [
+                    [f_w, f_h],
+                    [s_w, s_h],
+                    getPaddingType(padding).value,
+                ])
             elif layerType == LayerType.Conv2D:
                 inputNode = layer['inbound_nodes'][0]['args'][0]
                 inputFilters = inputNode['shape'][3]
@@ -246,8 +258,8 @@ class ModelDeployer():
         logger.info("Deploying model to EternalAI chain ...")
         layers = model_data["model_graph"]["layers"]
         weights = model_data["weights"]
-        hashed_layers = hash_dict(layers)
-        deployed_model_contract = self.cache_data.get(hashed_layers, None)
+        hashed_model = model_data["hashed_model"]
+        deployed_model_contract = self.cache_data.get(hashed_model, None)
         if deployed_model_contract is not None:
             logger.warning(
                 "Model has already been deployed at address: " + deployed_model_contract["address"]
@@ -257,7 +269,7 @@ class ModelDeployer():
             contract_address = self.deploy_from_artifact()
             deployed_model_contract = {}
             deployed_model_contract["address"] = contract_address
-            self.cache_data[hashed_layers] = deployed_model_contract
+            self.cache_data[hashed_model] = deployed_model_contract
             self._update_cache()
         contract = self.w3.eth.contract(address=deployed_model_contract["address"], abi=CONTRACT_ARTIFACT['abi'])
         layersData, totalWeights = self.get_model_config(layers)
@@ -285,7 +297,7 @@ class ModelDeployer():
             )
             deployed_layer_configs.append(config)
             deployed_model_contract["layer_configs"] = deployed_layer_configs
-            self.cache_data[hashed_layers] = deployed_model_contract
+            self.cache_data[hashed_model] = deployed_model_contract
             self._update_cache()
         layerConfigParams = list(
             map(lambda x: x.toContractParams(), layerConfigs))
@@ -301,7 +313,7 @@ class ModelDeployer():
             if receipt['status'] != 1:
                 raise Exception('tx failed', receipt)
             deployed_model_contract["is_constructed"] = True
-            self.cache_data[hashed_layers] = deployed_model_contract
+            self.cache_data[hashed_model] = deployed_model_contract
             self._update_cache()
             logger.success(f"Model constructed successfully, tx:  {constructModelTxHash.hex()}, gas used: {receipt.gasUsed}.")
         else:
@@ -311,6 +323,6 @@ class ModelDeployer():
             appended_weights = data[2]
         self.uploadModelWeights(contract, weights, appended_weights)
         logger.success("Model deployed at address: " + contract.address)
-        self.cache_data.pop(hashed_layers)
+        self.cache_data.pop(hashed_model)
         self._update_cache()
         return contract

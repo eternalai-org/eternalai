@@ -1,7 +1,7 @@
 import os
 import json
 import struct
-import base64
+import hashlib
 import importlib
 from eai.utils import Logger
 
@@ -89,7 +89,7 @@ class ModelExporter:
     
         return ret
 
-    def _export_model_graph(self, model, vocabulary=None, output_path=None):
+    def _export_model_graph(self, model):
         """
         Export the model graph.
 
@@ -161,19 +161,10 @@ class ModelExporter:
                     prev_layer_out_shape = model.layers[index_layer].output.shape
                     index_layer += 1
             graph["layers"].append(data)
-        graph["metadata"] = {
-            "vocabulary": vocabulary,
-        }
-        if output_path:
-            # Save the model graph to a JSON file
-            with open(output_path, "w") as f:
-                json.dump(graph, f)
-            Logger.success(f"Model graph exported to {output_path}.")
-        else:
-            Logger.success("Model graph exported.")
+        Logger.success("Model graph exported.")
         return graph
 
-    def _export_weights(self, model, output_path=None):
+    def _export_weights(self, model):
         """
         Export the model weights.
 
@@ -190,23 +181,15 @@ class ModelExporter:
         for layer in model.layers:
             w = layer.get_weights()
             weights.append(w)
-        weight_bytes = bytearray()
         for idx, layer in enumerate(weights):
             for weight_group in layer:
                 flatten = weight_group.reshape(-1).tolist()
                 for i in flatten:
-                    weight_bytes.extend(struct.pack("@f", float(i)))
                     flattened_weights.append(float(i))
-        weight_base64 = base64.b64encode(weight_bytes).decode()
-        if output_path:
-            with open(output_path, "w") as f:
-                f.write(weight_base64)
-            Logger.success(f"Weights exported to {output_path}.")
-        else:
-            Logger.success("Weights exported.")
+        Logger.success("Weights exported.")
         return flattened_weights
 
-    def _export_tf_model(self, model, vocabulary=None, output_dir=None):
+    def _export_tf_model(self, model):
         """
         Export a Tensorflow/Keras model.
 
@@ -219,27 +202,27 @@ class ModelExporter:
             dict: A dictionary containing the exported model graph and weights.
         """
         Logger.info("Exporting Tensorflow/Keras model ...")
-        model_graph_path = None
-        weights_path = None
-        if output_dir is not None:
-            os.makedirs(output_dir, exist_ok=True)
-            model_graph_path = os.path.join(output_dir, "graph.json")
-            weights_path = os.path.join(output_dir, "weights.txt")
+
         # Export the model graph
-        model_graph = self._export_model_graph(
-            model, vocabulary, model_graph_path)
+        model_graph = self._export_model_graph(model)
         # Export the weights
-        weights = self._export_weights(model, weights_path)
-        if output_dir is not None:
-            Logger.success(f"Model exported successfully at {output_dir}.")
-        else:
-            Logger.success("Model exported successfully.")
+        weights = self._export_weights(model)
+        # Create a hash of the model graph
+        hashed_graph = hashlib.sha256(json.dumps(model_graph, sort_keys=True).encode()).hexdigest()
+
+        # Create a hash of the weights
+        hashed_weights = hashlib.sha256(json.dumps(weights).encode()).hexdigest()
+
+        # Concatenate the two hashes
+        hashed_model = f"{hashed_graph}{hashed_weights}"
+        Logger.success("Model exported successfully.")
         return {
             "model_graph": model_graph,
-            "weights": weights
+            "weights": weights,
+            "hashed_model": hashed_model
         }
 
-    def export_model(self, model, vocabulary=None, output_dir=None):
+    def export_model(self, model):
         """
         Export a Tensorflow/Keras model.
 
@@ -251,5 +234,5 @@ class ModelExporter:
         Returns:
             dict: A dictionary containing the exported model graph and weights.
         """
-        model_data = self._export_tf_model(model, vocabulary, output_dir)
+        model_data = self._export_tf_model(model)
         return model_data

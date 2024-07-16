@@ -190,7 +190,6 @@ def main():
         }
         set_node_endpoint(**args)
     elif known_args.command == "publish":
-        # export model to json
         args = {
             'model': known_args.model,
             'name': known_args.name,

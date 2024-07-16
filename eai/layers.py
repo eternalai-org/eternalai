@@ -11,14 +11,6 @@ class InputLayer:
         return {"batch_input_shape": self.batch_input_shape}
 
 
-class Linear:
-    def __init__(self, cfg):
-        pass
-
-    def get_layer_config(self):
-        return {}
-
-
 class Rescaling:
     def __init__(self, cfg):
         assert "scale" in cfg, "scale is required for Rescaling"
@@ -40,35 +32,6 @@ class Dense:
     def get_layer_config(self):
         return {"units": self.units, "activation": self.activation}
 
-
-class Sigmoid:
-    def __init__(self, cfg):
-        pass
-
-    def get_layer_config(self):
-        return {}
-
-
-class ReLU:
-    def __init__(self, cfg):
-        assert "negative_slope" in cfg, "negative_slope is required for ReLU"
-        self.negative_slope = cfg["negative_slope"]
-        assert "max_value" in cfg, "max_value is required for ReLU"
-        self.max_value = cfg["max_value"]
-        assert "threshold" in cfg, "threshold is required for ReLU"
-        self.threshold = cfg["threshold"]
-
-    def get_layer_config(self):
-        return {"negative_slope": self.negative_slope, "max_value": self.max_value, "threshold": self.threshold}
-
-
-class Softmax:
-    def __init__(self, cfg):
-        assert "axis" in cfg, "axis is required for Softmax"
-        self.axis = cfg["axis"]
-
-    def get_layer_config(self):
-        return {"axis": self.axis}
 
 
 class Rescale:
@@ -92,8 +55,7 @@ class Conv2D:
         self.strides = cfg["strides"]
         assert "padding" in cfg, "padding is required for Conv2D"
         self.padding = cfg["padding"]
-        assert "activation" in cfg, "activation is required for Conv2D"
-        self.activation = cfg["activation"]
+        self.activation = cfg.get("activation", None)
 
     def get_layer_config(self):
         return {"filters": self.filters, "kernel_size": self.kernel_size, "strides": self.strides, "padding": self.padding, "activation": self.activation}
@@ -111,6 +73,18 @@ class MaxPooling2D:
     def get_layer_config(self):
         return {"pool_size": self.pool_size, "strides": self.strides, "padding": self.padding}
 
+
+class AveragePooling2D:
+    def __init__(self, cfg):
+        assert "pool_size" in cfg, "pool_size is required for MaxPooling2D"
+        self.pool_size = cfg["pool_size"]
+        assert "strides" in cfg, "strides is required for MaxPooling2D"
+        self.strides = cfg["strides"]
+        assert "padding" in cfg, "padding is required for MaxPooling2D"
+        self.padding = cfg["padding"]
+    
+    def get_layer_config(self):
+        return {"pool_size": self.pool_size, "strides": self.strides, "padding": self.padding}
 
 class SimpleRNN:
     def __init__(self, cfg):
@@ -146,13 +120,6 @@ class LSTM:
     def get_layer_config(self):
         return {"units": self.units, "activation": self.activation, "recurrent_activation": self.recurrent_activation}
 
-
-class Flatten:
-    def __init__(self, cfg):
-        pass
-
-    def get_layer_config(self):
-        return {}
     
 class Add:
     def __init__(self, cfg):
@@ -161,3 +128,57 @@ class Add:
     def get_layer_config(self):
         return {}
         
+class Linear:
+    def __init__(self, cfg):
+        pass
+
+    def get_layer_config(self):
+        return {}
+    
+class Sigmoid:
+    def __init__(self, cfg):
+        pass
+
+    def get_layer_config(self):
+        return {}
+
+class ReLU:
+    def __init__(self, cfg):
+        self.negative_slope = cfg.get("negative_slope", 0)
+        self.max_value = cfg.get("max_value", 0)
+        self.threshold = cfg.get("threshold", 0)
+
+    def get_layer_config(self):
+        return {"negative_slope": self.negative_slope, "max_value": self.max_value, "threshold": self.threshold}
+
+
+class Softmax:
+    def __init__(self, cfg):
+        self.axis = cfg.get("axis", -1)
+
+    def get_layer_config(self):
+        return {"axis": self.axis}
+    
+class Flatten:
+    def __init__(self, cfg):
+        pass
+
+    def get_layer_config(self):
+        return {}
+    
+class Activation:
+    def __init__(self, cfg):
+        activation_name = cfg.get("activation", None) 
+        if activation_name == "relu":
+            self.activation = ReLU(cfg)
+        elif activation_name == "sigmoid":
+            self.activation = Sigmoid(cfg)
+        elif activation_name == "softmax":
+            self.activation = Softmax(cfg)
+        elif activation_name == "linear":
+            self.activation = Linear(cfg)
+        else:
+            raise Exception(f"Activation {activation_name} is not supported")
+        
+    def get_layer_config(self):
+        return self.activation.get_layer_config()

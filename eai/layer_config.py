@@ -6,6 +6,7 @@ LayerType = Enum('LayerType', [
     'Flatten',
     'Rescaling',
     'MaxPooling2D',
+    'AveragePooling2D',
     'Conv2D',
     'Embedding',
     'SimpleRNN',
