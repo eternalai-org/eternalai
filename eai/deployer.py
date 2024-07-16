@@ -1,5 +1,4 @@
 import os
-import json
 import pickle
 from web3 import Web3
 from web3 import Account
@@ -11,7 +10,7 @@ from eai.layer_config import LayerType, InputType
 from web3.middleware import construct_sign_and_send_raw_middleware
 import importlib
 from eai.data import GAS_LIMIT, CHUNK_LEN
-from eai.utils import fromFloat, index_last, getLayerType, getActivationType, getPaddingType, get_script_path, hash_dict
+from eai.utils import fromFloat, index_last, getLayerType, getActivationType, getPaddingType, get_script_path
 from eai.artifacts.models.FunctionalModel import CONTRACT_ARTIFACT
 
 

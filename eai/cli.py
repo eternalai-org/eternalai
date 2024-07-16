@@ -32,6 +32,14 @@ def parse_args():
         help="private key for on-chain deployment"
     )
     parser.add_argument(
+        "--mode",
+        "-mo",
+        action='store',
+        default=None,
+        type=str,
+        help="mode for on-chain deployment"
+    )
+    parser.add_argument(
         "--node-endpoint",
         "-node",
         action='store',
@@ -80,11 +88,24 @@ def set_private_key(**kwargs):
         Logger.success(f"Address: {account['address']}")
         private_key = account['private_key']
     Logger.info("Setting private key ...")
-    env_config = {
-        "PRIVATE_KEY": private_key,
-        "NODE_ENDPOINT": os.environ.get("NODE_ENDPOINT", "https://node.eternalai.org"),
-        "BACKEND_DOMAIN": os.environ.get("BACKEND_DOMAIN", "https://api-dojo2.eternalai.org/api/dojo")
-    }
+    if kwargs['mode'] == "mainnet":
+        env_config = {
+            "PRIVATE_KEY": private_key,
+            "NODE_ENDPOINT": "https://node.eternalai.org",
+            "BACKEND_DOMAIN": "https://api-dojo2.eternalai.org/api/dojo"
+        }
+    elif kwargs['mode'] == "testnet":
+        env_config = {
+            "PRIVATE_KEY": private_key,
+            "NODE_ENDPOINT": "https://eternal-ai3.tc.l2aas.com/rpc",
+            "BACKEND_DOMAIN": "https://api-dojo.dev2.eternalai.org/api/dojo"
+        }
+    else:
+        env_config = {
+            "PRIVATE_KEY": private_key,
+            "NODE_ENDPOINT": os.environ.get("NODE_ENDPOINT", "https://eternal-ai3.tc.l2aas.com/rpc"),
+            "BACKEND_DOMAIN": os.environ.get("BACKEND_DOMAIN", "https://api-dojo.dev2.eternalai.org/api/dojo")
+        }
     with open(ENV_PATH, "w") as f:
         for key, value in env_config.items():
             f.write(f"{key}={value}\n")
@@ -181,6 +202,7 @@ def main():
         # update configurations
         args = {
             'private-key': known_args.private_key,
+            'mode': known_args.mode,
         }
         set_private_key(**args)
     elif known_args.command == 'set-node-endpoint':

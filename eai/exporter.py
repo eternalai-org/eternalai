@@ -1,6 +1,4 @@
-import os
 import json
-import struct
 import hashlib
 import importlib
 from eai.utils import Logger

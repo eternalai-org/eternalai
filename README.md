@@ -33,6 +33,10 @@ eai set-private-key -p YOUR_PRIVATE_KEY
 
 ***Notes***:
 - The `-p` parameter means private key, and it is **optional**. If you don't provide a private key, the system will generate one and save it in `.env` file.
+- By default endpoint and backend domain will be set to mainnet. If you want to change it to testnet, you can run the following command:
+```bash
+eai set-private-key -p YOUR_PRIVATE_KEY -mo testnet
+```
 
 ## Exporting Your Model Using the Command Line
 
