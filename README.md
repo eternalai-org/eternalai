@@ -30,7 +30,7 @@ eai wallet import -p YOUR_PRIVATE_KEY --network mainnet
 ```
 
 ***Notes***:
-- The `-p` parameter means private key, and it is **optional**. If you don't provide a private key, the system will generate one and save it in `.env` file.
+- The `-p` parameter means private key, and it is **required**. If you don't provide a private key, the system will throw an error.
 - The `--network` parameter means the network you want to use, and it is **optional**. If you don't provide a network, the system will use the `testnet` network as default.
 
 ## Exporting Your Model Using the Command Line
@@ -112,7 +112,7 @@ eai eternal transform -m PATH_TO_MODEL -name MODEL_NAME -o OUTPUT_PATH --network
     
 # More detail?
 
-Check out our [documentation](https://docs.eternalai.org/eternal-ai)
+Check out our [documentation](https://docs.eternalai.org/eternal-ai/eternals/what-are-eternals)
 
 # Need help?
 
