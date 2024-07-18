@@ -17,37 +17,33 @@ To check if the installation was successful, run the following command:
 eai version
 ```
 
-***Note: This repository uses Keras3 framework by default. If you want to downgrade to Keras2, you can run the following command:***
-
-```bash
-pip install tensorflow==2.15.1
-``` 
-
 ## Setting your Private Key
 
 To set or create your private key, run the following command in your terminal:
 
 ```bash
-eai set-private-key -p YOUR_PRIVATE_KEY
+eai wallet create
+```
+or
+```bash
+eai wallet import -p YOUR_PRIVATE_KEY --network mainnet
 ```
 
 ***Notes***:
 - The `-p` parameter means private key, and it is **optional**. If you don't provide a private key, the system will generate one and save it in `.env` file.
-- By default endpoint and backend domain will be set to mainnet. If you want to change it to testnet, you can run the following command:
-```bash
-eai set-private-key -p YOUR_PRIVATE_KEY -mo testnet
-```
+- The `--network` parameter means the network you want to use, and it is **optional**. If you don't provide a network, the system will use the `testnet` network as default.
 
 ## Exporting Your Model Using the Command Line
 
 ```bash
-eai publish -m PATH_TO_MODEL -name MODEL_NAME -o OUTPUT_PATH
+eai eternal transform -m PATH_TO_MODEL -name MODEL_NAME -o OUTPUT_PATH --network NETWORK
 ```
 
 ***Notes***: 
 - The `-m` parameter means the path to your model file, and it is **required**. If you don't provide a model path, the system will throw an error.
 - The `-name` parameter means the name of your model, and it is **optional**. If you don't provide a model name, the system will use default name as ``unknowned name``.
 - The `-o` parameter means the output path of your model metadata file, and it is **optional**. If you don't provide an output path, the system will output at ``output.json``.
+- The `--network` parameter means the network you want to use, and it is **optional**. If you don't provide a network, the system will use the network you set when `creating` or `importing` your private key.
 
 ## Exporting Your Model Using Python
 
@@ -94,26 +90,30 @@ eai publish -m PATH_TO_MODEL -name MODEL_NAME -o OUTPUT_PATH
     import eai
 
     # Replace 'model' with your trained Keras model and provide a model name
-    eai_model = eai.publish(model, model_name="lenet5")
+    eternal = eai.transform(model, model_name="lenet5")
     ``` 
     ## Load Your Model from an On-Chain Address
     To load a model from an on-chain address, use the EAIModel class from the eai.model module:
     ```python
-    from eai.model import EAIModel
+    from eai.model import Eternal
 
     # Create an instance of EAIModel
-    eai_model = EAIModel()
+    eternal = Eternal()
 
     # Replace '0xYOUR_ADDRESS' with the actual on-chain address of your model
-    eai_model.load("0xYOUR_ADDRESS")
+    eternal.load("0xYOUR_ADDRESS")
     ```
     *Note: Make sure to replace `0xYOUR_ADDRESS` with the real address of your model on-chain.*
 3. Call Your Model On-Chain:
     ```python
-    output = eai_model.predict(input)
+    output = eternal.predict(input)
     ```
     *Note: Ensure your `input` is preprocessed to match the model’s expected input format.*
     
+# More detail?
+
+Check out our [documentation](https://docs.eternalai.org/eternal-ai)
+
 # Need help?
 
 Join our community at [https://eternalai.org/](https://eternalai.org/)

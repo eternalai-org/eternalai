@@ -1,10 +1,14 @@
 import os
 import sys
+import pickle
+import subprocess
 from web3 import Account
 from loguru import logger
 from typing import List
 from eai.layer_config import LayerType, Activation, Padding
 
+TENSORFLOW_KERAS2="2.15.1"
+TENSORFLOW_KERAS3="2.16.1"
 Logger = logger
 Logger.remove()
 Logger.add(
@@ -17,11 +21,9 @@ Logger.add(
     colorize=True
 )
 
-
 def create_web3_account():
     account = Account.create()
     return {"address": account.address, "private_key": account._private_key.hex()}
-
 
 def publisher():
     private_key = os.environ.get("PRIVATE_KEY", None)
@@ -97,3 +99,36 @@ def get_script_path():
 
 
 ENV_PATH = os.path.join(get_script_path(), ".env")
+
+def get_keras_version():
+    cache_data = {}
+    cache_file = os.path.join(get_script_path(), ".cache")
+    if os.path.exists(cache_file):
+        with open(cache_file, "rb") as f:
+            cache_data = pickle.load(f)
+    return cache_data.get("keras_version", "3.4.1")
+
+def update_keras_version():
+    import keras    
+    Logger.success(f"Keras version is now {keras.__version__}")
+    cache_data = {}
+    cache_file = os.path.join(get_script_path(), ".cache")
+    if os.path.exists(cache_file):
+        with open(cache_file, "rb") as f:
+            cache_data = pickle.load(f)
+    cache_data["keras_version"] = keras.__version__
+    with open(cache_file, "wb") as f:
+        pickle.dump(cache_data, f)
+
+def handle_keras_version(format_version):
+    keras_version = get_keras_version()
+    if format_version == "keras2":
+        if keras_version.startswith("3."):
+            Logger.warning(f"Your Keras version is now {keras_version} not compatible with Keras2. Downgrading to Keras2 ...")
+            subprocess.run(["pip", "install", "tensorflow=={}".format(TENSORFLOW_KERAS2)])
+            update_keras_version()
+    else:
+        if keras_version.startswith("2."):
+            Logger.warning(f"Your Keras version is now {keras_version} not compatible with Keras3. Upgrading to Keras3 ...")
+            subprocess.run(["pip", "install", "tensorflow=={}".format(TENSORFLOW_KERAS3)])
+            update_keras_version()

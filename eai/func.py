@@ -1,17 +1,45 @@
 from eai.utils import publisher
-from eai.utils import Logger, LayerType
-import keras
+from eai.utils import Logger, LayerType, handle_keras_version
 import json
-from eai.model import EAIModel
+import os
+import requests
+from eai.network_config import NETWORK
+from eai.model import Eternal
 from eai.deployer import ModelDeployer
 from eai.exporter import ModelExporter
 import importlib
-from typing import Union
 
 
-def publish(model: Union[keras.Model, str], model_name: str = "Unnamed Model") -> EAIModel:
+def register(address, name, owner):
+        Logger.info("Registering model ...")
+        register_endpoint = NETWORK[os.environ["NETWORK_MODE"]]["REGISTER_ENDPOINT"]
+        try:
+            headers = {"Content-Type": "application/json"}
+            data = {
+                "model_address": address,
+                "model_name": name,
+                "owner_address": owner
+            }
+            response = requests.post(
+                register_endpoint, headers=headers, json=data)
+            response.raise_for_status()  # Raises an HTTPError for bad responses (4xx or 5xx)
+
+            if response.json().get("status") == 1:
+                Logger.success("Model registered successfully.")
+            else:
+                Logger.error("Failed to register model. Response status not 1.")
+        except Exception as e:
+            Logger.error(f"An unexpected error occurred: {e}")
+
+def transform(model, model_name: str = "Unnamed Model", format = "keras3", network_mode: str = None):
+    assert format in ["keras2", "keras3"], "Format must be either 'keras2' or 'keras3'"
+    if network_mode is None:
+        network_mode = os.environ["NETWORK_MODE"]
+    handle_keras_version(format)
+    import keras
     import time
     start = time.time()
+    Logger.info(f"Transforming model on EternalAI's {network_mode}...")
     if isinstance(model, str):
         model = keras.models.load_model(model)
     assert isinstance(model, keras.Model), "Model must be a keras model"
@@ -21,21 +49,22 @@ def publish(model: Union[keras.Model, str], model_name: str = "Unnamed Model") -
         Logger.error(f"Failed to export model: {e}")
         return None
     try:
-        contract = ModelDeployer().deploy_model(model_data)
+        contract = ModelDeployer(network_mode).deploy_model(model_data)
     except Exception as e:
         Logger.error(f"Failed to deploy model: {e}")
         return None
     address = contract.address
-    eai_model = EAIModel(**{"address": address, 
-                            "name": model_name, 
-                            "owner": publisher()})
-    eai_model.register()
+    register(address, model_name, publisher())
+    try:
+        eai_model = Eternal()
+        eai_model.load(address)
+    except Exception as e:
+        Logger.error(f"Failed to load model from address: {e}")
     Logger.success(
-        f"Model published successfully. Time taken: {time.time() - start} seconds")
+        f"Model transformed successfully on EternalAI's {network_mode}. Time taken: {time.time() - start} seconds")
     return eai_model
 
-def check_keras_model(model: keras.Model, output_path: str = None):
-    assert isinstance(model, keras.Model), "Model must be a keras model"
+def check_keras_model(model, output_path: str = None):
     try:
         model_data = json.loads(model.to_json())
     except Exception as e:
@@ -83,7 +112,10 @@ def check_keras_model(model: keras.Model, output_path: str = None):
     return response
     
 
-def check(model, output_path = None):
+def check(model, format = "keras3", output_path = None):
+    assert format in ["keras2", "keras3"], "Format must be either 'keras2' or 'keras3'"
+    handle_keras_version(format)
+    import keras
     if isinstance(model, keras.Model):
         Logger.info(
             "Model is a keras model. Checking model layers ...")
@@ -108,3 +140,8 @@ def check(model, output_path = None):
 
 def layers():
     return list(LayerType.__members__.keys())
+
+def get_model(model: str):
+    eternal = Eternal()
+    eternal.load(model)
+    return eternal

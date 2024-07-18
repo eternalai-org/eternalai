@@ -9,7 +9,7 @@ from eai.utils import Logger as logger
 from eai.layer_config import LayerType, InputType
 from web3.middleware import construct_sign_and_send_raw_middleware
 import importlib
-from eai.data import GAS_LIMIT, CHUNK_LEN
+from eai.network_config import GAS_LIMIT, CHUNK_LEN, NETWORK
 from eai.utils import fromFloat, index_last, getLayerType, getActivationType, getPaddingType, get_script_path
 from eai.artifacts.models.FunctionalModel import CONTRACT_ARTIFACT
 
@@ -33,8 +33,10 @@ class LayerConfig:
 
 
 class ModelDeployer():
-    def __init__(self):
-        self.w3 = Web3(Web3.HTTPProvider(os.environ["NODE_ENDPOINT"]))
+    def __init__(self, network: str = None):
+        network_mode = network if network is not None else os.environ["NETWORK_MODE"]
+        node_endpoint = NETWORK[network_mode]["NODE_ENDPOINT"]
+        self.w3 = Web3(Web3.HTTPProvider(node_endpoint))
         self.private_key = os.environ["PRIVATE_KEY"]
         self.chunk_len = CHUNK_LEN
         try:
@@ -48,6 +50,7 @@ class ModelDeployer():
         if os.path.exists(self.cache_file):
             with open(self.cache_file, "rb") as f:
                 self.cache_data = pickle.load(f)
+        self.network_mode = network_mode
 
     def _update_cache(self):
         with open(self.cache_file, "wb") as f:
@@ -268,7 +271,8 @@ class ModelDeployer():
             contract_address = self.deploy_from_artifact()
             deployed_model_contract = {}
             deployed_model_contract["address"] = contract_address
-            self.cache_data[hashed_model] = deployed_model_contract
+            hash_value = hashed_model + self.network_mode
+            self.cache_data[hash_value] = deployed_model_contract
             self._update_cache()
         contract = self.w3.eth.contract(address=deployed_model_contract["address"], abi=CONTRACT_ARTIFACT['abi'])
         layersData, totalWeights = self.get_model_config(layers)
