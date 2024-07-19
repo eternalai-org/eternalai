@@ -12,95 +12,187 @@ from eai.func import transform, check, get_model
 ETHER_PER_WEI = 10**18
 DEFAULT_NETWORK = "testnet"
 
+import argparse
+
+
 def parse_args():
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "command",
-        action='store',
-        type=str,
-        choices=[
-            'version',
-            'wallet',
-            'eternal',
-            'call'
-        ],
-        help="command to execute"
+    parser = argparse.ArgumentParser(
+        description="Tool for managing and deploying machine learning models on-chain."
     )
-    # First parse the command
-    args, unknown = parser.parse_known_args()
-    if args.command in ['wallet', 'eternal', 'call']:
-        parser.add_argument(
-            "subcommand",
-            action='store',
-            type=str,
-            help="subcommand to execute for wallet"
-        )
-    parser.add_argument(
+
+    subparsers = parser.add_subparsers(dest='command', help="Commands to execute for EternalAI")
+    subparsers.add_parser('version', help="Show the version of the toolkit.")
+    # Wallet command
+    parser_wallet = subparsers.add_parser('wallet', help="Commands to execute for wallet operations")
+    wallet_commands = parser_wallet.add_subparsers(dest='subcommand', help="Subcommands to execute for wallet")
+
+    wallet_create = wallet_commands.add_parser('create', help='Create a new wallet')
+    wallet_create.add_argument(
+        "--network",
+        action='store',
+        default=DEFAULT_NETWORK,
+        type=str,
+        help="Network mode. Specify the network configuration. Default is {DEFAULT_NETWORK}."
+    )
+    wallet_import = wallet_commands.add_parser('import', help='Import a wallet from private key')
+    wallet_import.add_argument(
         "--private-key",
         "-p",
         action='store',
         type=str,
-        help="restore from private key"
+        help="Private key for the wallet"
     )
-    parser.add_argument(
+    wallet_import.add_argument(
+        "--network",
+        action='store',
+        default=None,
+        type=str,
+        help="Network mode. Specify the network configuration. Default is {DEFAULT_NETWORK}."
+    )
+    wallet_balance = wallet_commands.add_parser('balance', help='Check the balance of the wallet')
+    wallet_transactions = wallet_commands.add_parser('transactions', help='List all transactions for the wallet')
+    wallet_transactions.add_argument(
+        "--output-path",
+        "-o",
+        action='store',
+        default=None,
+        type=str,
+        help="Output path for saving transactions list."
+    )
+    wallet_transactions.add_argument(
+        "--network",
+        action='store',
+        default=None,
+        type=str,
+        help="Network mode. Specify the network configuration."
+    )
+
+    wallet_faucet = wallet_commands.add_parser('faucet', help='Request testnet ether from the faucet')
+    wallet_faucet.add_argument(
+        "--network",
+        action='store',
+        default=DEFAULT_NETWORK,
+        type=str,
+        help=f"Network mode. Specify the network configuration. Default is {DEFAULT_NETWORK}."
+    )
+
+    # Eternal command
+    parser_eternal = subparsers.add_parser('eternal', help='Commands to execute for eternal operations')
+    eternal_commands = parser_eternal.add_subparsers(dest='subcommand', help="Subcommands to execute for eternal")
+
+    eternal_transform = eternal_commands.add_parser('transform', help='Transform a Keras model to the EternalAI chain')
+    eternal_transform.add_argument(
         "--format",
         action='store',
         type=str,
-        default = 'keras3',
+        default='keras3',
         choices=['keras2', 'keras3'],
-        help="format of the model to deploy on-chain"
+        help="Format of the model to deploy on-chain. Default is 'keras3'. Choices: 'keras2', 'keras3'."
     )
-    parser.add_argument(
+    eternal_transform.add_argument(
         "--file",
         "-f",
         action='store',
-        default = None,
+        default=None,
         type=str,
-        help="path to the model file"
+        help="Path to the model file."
     )
-    parser.add_argument(
+    eternal_transform.add_argument(
         "--url",
         action='store',
-        default = None,
+        default=None,
         type=str,
-        help="url to the model file"
+        help="URL to the model file."
     )
-    parser.add_argument(
+    eternal_transform.add_argument(
         "--name",
         "-n",
         action='store',
         type=str,
         default="Unnamed Model",
-        help="name of the model"
+        help="Name of the model. Default is 'Unnamed Model'."
     )
-    parser.add_argument(
+    eternal_transform.add_argument(
         "--network",
         action='store',
         type=str,
-        default = None,
-        help="network mode"
+        default=None,
+        help="Network mode. Specify the network configuration."
     )
-    parser.add_argument(
-        "--input",
-        action='store',
-        type=str,
-        help="input data for 'eai call predict' command"
-    )
-    parser.add_argument(
-        "--eternal-address",
-        action='store',
-        type=str,
-        help="address of the model for 'eai call command'"
-    )
-    parser.add_argument(
+    eternal_transform.add_argument(
         "--output-path",
         "-o",
         action='store',
-        default = None,
+        default=None,
         type=str,
-        help="output path for commands"
+        help="Output path for saving transformed model metadata."
     )
 
+    eternal_list = eternal_commands.add_parser('list', help='List all deployed models')
+    eternal_list.add_argument(
+        "--network",
+        action='store',
+        default=None,
+        type=str,
+        help="Network mode. Specify the network configuration."
+    )
+    eternal_list.add_argument(
+        "--output-path",
+        "-o",
+        action='store',
+        default=None,
+        type=str,
+        help="Output path for saving deployed models list."
+    )
+    eternal_check = eternal_commands.add_parser('check', help='Check the model format')
+    eternal_check.add_argument(
+        "--format",
+        action='store',
+        type=str,
+        default='keras3',
+        choices=['keras2', 'keras3'],
+        help="Format of the model to deploy on-chain. Default is 'keras3'. Choices: 'keras2', 'keras3'."
+    )
+    eternal_check.add_argument(
+        "--file",
+        "-f",
+        action='store',
+        default=None,
+        type=str,
+        help="Path to the model file."
+    )
+    eternal_check.add_argument(
+        "--url",
+        action='store',
+        default=None,
+        type=str,
+        help="URL to the model file."
+    )
+    eternal_check.add_argument(
+        "--output-path",
+        "-o",
+        action='store',
+        default=None,
+        type=str,
+        help="Output path for saving check result."
+    )
+    # Call command
+    parser_call = subparsers.add_parser('call', help='Commands to execute for call operations')
+    call_commands = parser_call.add_subparsers(dest='subcommand', help="Subcommands to execute for call")
+
+    call_predict = call_commands.add_parser('predict', help="Call the predict function of a deployed model")
+    call_predict.add_argument(
+        "--input",
+        action='store',
+        type=str,
+        help="Input data for 'eai call predict' command."
+    )
+    call_predict.add_argument(
+        "--eternal-address",
+        action='store',
+        type=str,
+        help="Address of the model for 'eai call' command."
+    )
     return parser.parse_known_args()
 
 def create_wallet(**kwargs):
@@ -115,7 +207,7 @@ def create_wallet(**kwargs):
         for key, value in env_config.items():
             f.write(f"{key}={value}\n")
             os.environ[key] = str(value)
-    Logger.success("Private key created and set successfully.")
+    Logger.success("Wallet created and set successfully.")
 
 def import_wallet(**kwargs):
     if kwargs['private-key'] is None:
@@ -212,6 +304,34 @@ def wallet_faucet(**kwargs):
         Logger.warning("'eai wallet faucet' is only available on testnet.")
         sys.exit(2)
     
+def handle_wallet(args):
+    if args.subcommand == "create":
+        kwargs = {
+            "network": args.network
+        }
+        create_wallet(**kwargs)
+    elif args.subcommand == "import":
+        kwargs = {
+            "private-key": args.private_key,
+            "network": args.network
+        }
+        import_wallet(**kwargs)
+    elif args.subcommand == "transactions":
+        kwargs = {
+            "output-path": args.output_path,
+            "network": args.network
+        }
+        wallet_transactions(**kwargs)
+    elif args.subcommand == "balance":
+        wallet_balance()
+    elif args.subcommand == "faucet":
+        kwargs = {
+            "network": args.network
+        }
+        wallet_faucet(**kwargs)
+    else:
+        Logger.warning(f"Subcommand {args.subcommand} not work for eai {args.command}.")
+        sys.exit(2)
 
 def eternal_transform(**kwargs):
     if os.environ["PRIVATE_KEY"] is None:
@@ -279,11 +399,52 @@ def eternal_list(**kwargs):
             for model_info_str in deployed_models:
                 f.write(f"{model_info_str}\n")
 
+def handle_eternal(args):
+    if args.subcommand == "transform":
+        kwargs = {
+            "file": args.file,
+            "url": args.url,
+            "name": args.name,
+            "format": args.format,
+            "network": args.network,
+            "output-path": args.output_path
+        }
+        eternal_transform(**kwargs)
+    elif args.subcommand == "check":
+        kwargs = {
+            "file": args.file,
+            "url": args.url,
+            "format": args.format,
+            "output-path": args.output_path
+        }
+        eternal_check(**kwargs)
+    elif args.subcommand == "list":
+        kwargs = {
+            "network": args.network,
+            "output-path": args.output_path
+        }
+        eternal_list(**kwargs)
+    else:
+        Logger.warning(f"Subcommand {args.subcommand} not work for eai {args.command}.")
+        sys.exit(2)
+
 def call_predict(**kwargs):
     model = get_model(kwargs['eternal-address'])
     input_data = np.load(kwargs['input'])
     output_arr = model.predict([input_data], kwargs['output-path'])
     return output_arr
+
+def handle_call(args):
+    if args.subcommand == "predict":
+        kwargs = {
+            "input": args.input,
+            "eternal-address": args.eternal_address,
+            "output-path": args.output_path
+        }
+        call_predict(**kwargs)
+    else:
+        Logger.warning(f"Subcommand {args.subcommand} not work for eai {args.command}.")
+        sys.exit(2)
 
 @Logger.catch
 def main():
@@ -295,91 +456,11 @@ def main():
     if known_args.command == "version":
         Logger.success(f"✨ EternalAI Toolkit - Version: {__version__} ✨")
     elif known_args.command == "wallet":
-        if known_args.subcommand == "create":
-            args = {
-                "network": known_args.network,
-            }
-            create_wallet(**args)
-        elif known_args.subcommand == "import":
-            args = {
-                "private-key": known_args.private_key,
-                "network": known_args.network
-            } 
-            import_wallet(**args)
-        elif known_args.subcommand == "transactions":
-            args = {
-                "output-path": known_args.output_path,
-                "network": known_args.network
-            }
-            wallet_transactions(**args)
-        elif known_args.subcommand == "balance":
-            wallet_balance()
-        elif known_args.subcommand == "faucet":
-            args = {
-                "network": known_args.network
-            }
-            wallet_faucet(**args)
-        elif known_args.subcommand == "help":
-            Logger.info("EternalAI Wallet Commands:\n")
-            Logger.info("  \033[1;32meai wallet create\033[0m")
-            Logger.info("    \033[33mCreate a new wallet for EternalAI\033[0m\n")
-            Logger.info("  \033[1;32meai wallet import -p <private_key>\033[0m")
-            Logger.info("    \033[33mImport a wallet from a private key\033[0m\n")
-            Logger.info("  \033[1;32meai wallet transactions\033[0m")
-            Logger.info("    \033[33mList all transactions for the wallet\033[0m\n")
-            Logger.info("  \033[1;32meai wallet balance\033[0m")
-            Logger.info("    \033[33mCheck the balance of the wallet\033[0m\n")
-        else:
-            Logger.warning(f"Subcommand {known_args.subcommand} not work for eai {known_args.command}.")
-            sys.exit(2)
+        handle_wallet(known_args)
     elif known_args.command == "eternal":
-        if known_args.subcommand == "transform":
-            args = {
-                "file": known_args.file,
-                "url": known_args.url,
-                "format": known_args.format,
-                "name": known_args.name,
-                "network": known_args.network,
-                "output-path": known_args.output_path
-            }
-            eternal_transform(**args)
-        elif known_args.subcommand == "check":
-            args = {
-                "file": known_args.file,
-                "url": known_args.url,
-                "format": known_args.format,
-                "output-path": known_args.output_path
-            }
-            eternal_check(**args)
-        elif known_args.subcommand == "list":
-            args = {
-                "output-path": known_args.output_path,
-                "network": known_args.network
-            }
-            eternal_list(**args)
-        elif known_args.subcommand == "help":
-            Logger.info("EternalAI Eternal Commands:\n")
-            Logger.info("  \033[92meai eternal transform --model <model_path> --format <keras2/keras3> --name <model_name> --output-path <output_path>\033[0m")
-            Logger.info("    \033[93mTransform a Keras model to the EternalAI format and store it on the chain\033[0m\n")
-            Logger.info("  \033[92meai eternal check --model <model_path> --format <keras2/keras3> --output-path <output_path>\033[0m")
-            Logger.info("    \033[93mCheck the compatibility of a Keras model with the EternalAI format\033[0m\n")
-            Logger.info("  \033[92meai eternal list\033[0m")
-            Logger.info("    \033[93mList all models available from the specified address on the EternalAI chain\033[0m\n")
-        else:
-            Logger.warning(f"Subcommand {known_args.subcommand} not work for eai {known_args.command}.")
-            sys.exit(2)
+        handle_eternal(known_args)
     elif known_args.command == "call":
-        if known_args.subcommand == "predict":
-            args = {
-                "eternal-address": known_args.eternal_address,
-                "input": known_args.input,
-                "output-path": known_args.output_path
-            }
-            call_predict(**args)
-        elif known_args.subcommand == "help":
-            Logger.info("EternalAI Call Commands:\n")
-            Logger.info("  \033[92meai call predict --model-address <address> --input <input_data> --output-path <output_path>\033[0m")
-            Logger.info("    \033[93mMake a prediction using a model on the EternalAI chain\033[0m\n")
-
+        handle_call(known_args)
+        
 if (__name__ == "__main__"):
     main()
