@@ -193,6 +193,14 @@ def parse_args():
         type=str,
         help="Address of the model for 'eai call' command."
     )
+    call_predict.add_argument(
+        "--output-path",
+        "-o",
+        action='store',
+        default=None,
+        type=str,
+        help="Output path for saving prediction result."
+    )
     return parser.parse_known_args()
 
 def create_wallet(**kwargs):
