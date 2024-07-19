@@ -233,7 +233,7 @@ def import_wallet(**kwargs):
     Logger.success("Private key set successfully.")  
 
 def wallet_balance():
-    if os.environ["PRIVATE_KEY"] is None:
+    if "PRIVATE_KEY" not in os.environ:
         Logger.warning(
             "Private key not found. Please use command 'eai wallet create' or 'eai wallet import' to create a new wallet or restore from private key.")
         sys.exit(2)
@@ -266,7 +266,7 @@ def wallet_balance():
     return balance
 
 def wallet_transactions(**kwargs):
-    if os.environ["PRIVATE_KEY"] is None:
+    if "PRIVATE_KEY" not in os.environ:
         Logger.warning(
             "Private key not found. Please use command 'eai wallet create' or 'eai wallet import' to create a new wallet or restore from private key.")
         sys.exit(2)
@@ -291,7 +291,7 @@ def wallet_transactions(**kwargs):
         Logger.success(f"Transactions written to {kwargs['output-path']}.")
             
 def wallet_faucet(**kwargs):
-    if os.environ["PRIVATE_KEY"] is None:
+    if "PRIVATE_KEY" not in os.environ:
         Logger.warning(
             "Private key not found. Please use command 'eai wallet create' or 'eai wallet import' to create a new wallet or restore from private key.")
         sys.exit(2)
@@ -342,7 +342,7 @@ def handle_wallet(args):
         sys.exit(2)
 
 def eternal_transform(**kwargs):
-    if os.environ["PRIVATE_KEY"] is None:
+    if "PRIVATE_KEY" not in os.environ:
         Logger.warning(
             "Private key not found. Please use command 'eai wallet create' or 'eai wallet import' to create a new wallet or restore from private key.")
         sys.exit(2)
@@ -378,7 +378,7 @@ def eternal_check(**kwargs):
     check(kwargs['file'], kwargs['format'], kwargs['output-path'])
 
 def eternal_list(**kwargs):
-    if os.environ["PRIVATE_KEY"] is None:
+    if "PRIVATE_KEY" not in os.environ:
         Logger.warning(
             "Private key not found. Please use command 'eai wallet create' or 'eai wallet import' to create a new wallet or restore from private key.")
         sys.exit(2)

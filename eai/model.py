@@ -61,7 +61,8 @@ class Eternal:
     
     def load(self, model: str):
         if model.startswith("0x"):
-            self._load_metadata_from_address(model)
+            checksum_address = Web3.to_checksum_address(model)
+            self._load_metadata_from_address(checksum_address)
         else:
             self._load_metadata_from_id(model)
 
