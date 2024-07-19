@@ -12,9 +12,6 @@ from eai.func import transform, check, get_model
 ETHER_PER_WEI = 10**18
 DEFAULT_NETWORK = "testnet"
 
-import argparse
-
-
 def parse_args():
     parser = argparse.ArgumentParser(
         description="Tool for managing and deploying machine learning models on-chain."
@@ -230,7 +227,7 @@ def import_wallet(**kwargs):
         for key, value in env_config.items():
             f.write(f"{key}={value}\n")
             os.environ[key] = str(value)
-    Logger.success("Private key set successfully.")  
+    Logger.success("Wallet imported and set successfully.")
 
 def wallet_balance():
     if "PRIVATE_KEY" not in os.environ:
@@ -254,15 +251,16 @@ def wallet_balance():
     # get balance on mainnet
     mainnet_explorer = NETWORK["mainnet"]["EXPLORER_ENDPOINT"]
     testnet_url = f"{mainnet_explorer}?module=account&action=balancemulti&address={publisher()}"
-    response = requests.get(testnet_url)
-    if response.status_code == 200:
-        data = response.json()
-        result = data.get("result", None)
+    response = requests.get(testnet_url).json()
+    if response["message"] == "OK":
+        result = response.get("result", None)
         if result is not None:
             balance["mainnet"] = result[0]["balance"]
-    balance["mainnet"] = float(balance["mainnet"]) / ETHER_PER_WEI
-    Logger.success(f"Testnet: {balance['testnet']}")
-    Logger.success(f"Mainnet: {balance['mainnet']}")
+        balance["mainnet"] = float(balance["mainnet"]) / ETHER_PER_WEI
+        Logger.success(f"Testnet: {balance['testnet']}")
+        Logger.success(f"Mainnet: {balance['mainnet']}")
+    else:
+        Logger.error("Failed to get balance.")
     return balance
 
 def wallet_transactions(**kwargs):
@@ -299,15 +297,12 @@ def wallet_faucet(**kwargs):
     if network == "testnet":
         faucet_endpoint = NETWORK[network]["FAUCET_ENDPOINT"]
         url = f"{faucet_endpoint}/{publisher()}"
-        response = requests.post(url)
-        if response.status_code == 200:
-            response = response.json()
-            if response["status"] == 1:
-                Logger.success("Faucet request successful.")
-            else:
-                Logger.error("Faucet request failed.")
+        response = requests.post(url).json()
+        if response["status"] == 1:
+            Logger.success("Faucet request successful.")
         else:
-            Logger.error("Faucet request failed.")
+            error = response.get("error", "Something went wrong.")
+            Logger.error(f"Faucet request failed: {error}")
     else:
         Logger.warning("'eai wallet faucet' is only available on testnet.")
         sys.exit(2)
@@ -385,27 +380,26 @@ def eternal_list(**kwargs):
     network = kwargs["network"] if kwargs["network"] is not None else os.environ["NETWORK_MODE"]
     list_model_endpoint = NETWORK[network]["LIST_MODEL_ENDPOINT"]
     url = f"{list_model_endpoint}?address={publisher()}&public_only=false&limit=20&offset=0"
-    response = requests.get(url)
+    response = requests.get(url).json()
     deployed_models = []
-    if response.status_code == 200:
-        response = response.json()
-        if response["status"] == 1:
-            models = response["data"]
-            for model_info in models:
-                if model_info["status"] == "deployed":
-                    name = model_info["model_name"]
-                    address = model_info["model_address"]
-                    id = model_info["model_id"]
-                    price = 0
-                    owner = model_info["owner"]["address"]
-                    model_info_str = f"Model: {name}, Address: {address}, ID: {id}, Price: {price}, Owner: {owner}"
-                    Logger.success(model_info_str)
-                    deployed_models.append(model_info_str)
-
-    if kwargs["output-path"] is not None:
-        with open(kwargs["output-path"], "w") as f:
-            for model_info_str in deployed_models:
-                f.write(f"{model_info_str}\n")
+    if response["status"] == 1:
+        models = response["data"]
+        for model_info in models:
+            if model_info["status"] == "deployed":
+                name = model_info["model_name"]
+                address = model_info["model_address"]
+                id = model_info["model_id"]
+                price = 0
+                owner = model_info["owner"]["address"]
+                model_info_str = f"Model: {name}, Address: {address}, ID: {id}, Price: {price}, Owner: {owner}"
+                Logger.success(model_info_str)
+                deployed_models.append(model_info_str)
+        if kwargs["output-path"] is not None:
+            with open(kwargs["output-path"], "w") as f:
+                for model_info_str in deployed_models:
+                    f.write(f"{model_info_str}\n")
+    else:
+        Logger.error(f"Failed to get deployed models from EternalAI's {network}.")
 
 def handle_eternal(args):
     if args.subcommand == "transform":

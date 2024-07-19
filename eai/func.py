@@ -33,13 +33,12 @@ def register(address, name, owner):
 
 def transform(model, model_name: str = "Unnamed Model", format = "keras3", network_mode: str = None):
     assert format in ["keras2", "keras3"], "Format must be either 'keras2' or 'keras3'"
-    if network_mode is None:
-        network_mode = os.environ["NETWORK_MODE"]
+    network = network_mode if network_mode is not None else os.environ["NETWORK_MODE"]
     handle_keras_version(format)
     import keras
     import time
     start = time.time()
-    Logger.info(f"Transforming model on EternalAI's {network_mode}...")
+    Logger.info(f"Transforming model on EternalAI's {network}...")
     if isinstance(model, str):
         model = keras.models.load_model(model)
     assert isinstance(model, keras.Model), "Model must be a keras model"
@@ -49,7 +48,7 @@ def transform(model, model_name: str = "Unnamed Model", format = "keras3", netwo
         Logger.error(f"Failed to export model: {e}")
         return None
     try:
-        contract = ModelDeployer(network_mode).deploy_model(model_data)
+        contract = ModelDeployer(network).deploy_model(model_data)
     except Exception as e:
         Logger.error(f"Failed to deploy model: {e}")
         return None
@@ -116,12 +115,8 @@ def check(model, format = "keras3", output_path = None):
     assert format in ["keras2", "keras3"], "Format must be either 'keras2' or 'keras3'"
     handle_keras_version(format)
     import keras
-    if isinstance(model, keras.Model):
-        Logger.info(
-            "Model is a keras model. Checking model layers ...")
-        check_keras_model(model, output_path)
-    elif isinstance(model, str):
-        Logger.info(f"Loading model from {model} ...")
+    Logger.info(f"Loading model from {model} ...")
+    if isinstance(model, str):
         try:
             model = keras.models.load_model(model)
             Logger.success("Model loaded successfully.")
@@ -133,10 +128,11 @@ def check(model, format = "keras3", output_path = None):
             with open(output_path, "w") as f:
                 json.dump(response, f)
             raise Exception(f"Failed to load model: {e}")
-        check_keras_model(model, output_path)
-    else:
-        raise Exception("Model must be a keras model or a path to a keras model")
-        
+    response = check_keras_model(model, output_path)
+    if response["status"] == -1:
+        return False
+    return True
+    
 
 def layers():
     return list(LayerType.__members__.keys())

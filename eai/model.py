@@ -31,15 +31,16 @@ class TensorData:
         arr = arr_32x32 / (1 << 32)
         return arr
 
-
 class Eternal:
-    def __init__(self):
-        self.model_id = None
+    def __init__(self, id_or_address: str = None):
         self.address = None
+        self.model_id = None
         self.price = None
         self.name = None
         self.owner = None
         self.status = None
+        if id_or_address is not None:
+            self.load(id_or_address)
 
     def __str__(self):
         return f"id: {self.model_id}, address: {self.address}, name: {self.name}, price: {self.price}, owner: {self.owner}, status: {self.status}."
@@ -85,6 +86,8 @@ class Eternal:
                 Logger.error("Failed to load metadata. Response status not 1.")
         except Exception as e:
             Logger.error(f"An unexpected error occurred: {e}")
+            return False
+        return True
 
     def _load_metadata_from_address(self, address: str):
         self.address = address
