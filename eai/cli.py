@@ -29,7 +29,7 @@ def parse_args():
         action='store',
         default=DEFAULT_NETWORK,
         type=str,
-        help="Network mode. Specify the network configuration. Default is {DEFAULT_NETWORK}."
+        help=f"Network mode. Specify the network configuration. Default is {DEFAULT_NETWORK}."
     )
     wallet_import = wallet_commands.add_parser('import', help='Import a wallet from private key')
     wallet_import.add_argument(
@@ -44,7 +44,7 @@ def parse_args():
         action='store',
         default=None,
         type=str,
-        help="Network mode. Specify the network configuration. Default is {DEFAULT_NETWORK}."
+        help=f"Network mode. Specify the network configuration. Default is {DEFAULT_NETWORK}."
     )
     wallet_balance = wallet_commands.add_parser('balance', help='Check the balance of the wallet')
     wallet_transactions = wallet_commands.add_parser('transactions', help='List all transactions for the wallet')
@@ -61,7 +61,7 @@ def parse_args():
         action='store',
         default=None,
         type=str,
-        help="Network mode. Specify the network configuration."
+        help=f"Network mode. Specify the network configuration. Default is {DEFAULT_NETWORK}."
     )
 
     wallet_faucet = wallet_commands.add_parser('faucet', help='Request testnet ether from the faucet')
