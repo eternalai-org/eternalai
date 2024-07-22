@@ -31,6 +31,7 @@ class TensorData:
         arr = arr_32x32 / (1 << 32)
         return arr
 
+
 class Eternal:
     def __init__(self, id_or_address: str = None):
         self.address = None
@@ -40,7 +41,10 @@ class Eternal:
         self.owner = None
         self.status = None
         if id_or_address is not None:
-            self.load(id_or_address)
+            try:
+                self.load(id_or_address)
+            except Exception as e:
+                Logger.error(f"Failed to load model from {id_or_address}: {e}")
 
     def __str__(self):
         return f"id: {self.model_id}, address: {self.address}, name: {self.name}, price: {self.price}, owner: {self.owner}, status: {self.status}."
@@ -59,7 +63,7 @@ class Eternal:
 
     def get_publisher(self):
         return self.owner
-    
+
     def load(self, model: str):
         if model.startswith("0x"):
             checksum_address = Web3.to_checksum_address(model)
@@ -111,11 +115,11 @@ class Eternal:
 
     def get_address(self):
         return self.address
-    
+
     def get_id(self):
         return self.id
 
-    def to_json(self, output_path = None):
+    def to_json(self, output_path=None):
         metadata = {
             "address": self.address,
             "id": self.id,
@@ -134,11 +138,12 @@ class Eternal:
     def predict(self, inputs: List[np.ndarray], output_path: str = None) -> np.ndarray:
         network = os.environ["NETWORK_MODE"]
         address = self.address
-        Logger.info("Making prediction on EternalAI's {} at {} ...".format(network, address))
+        Logger.info(
+            "Making prediction on EternalAI's {} at {} ...".format(network, address))
         import time
         start = time.time()
         node_endpoint = NETWORK[network]["NODE_ENDPOINT"]
-        w3 = Web3(Web3.HTTPProvider(node_endpoint))
+        w3 = Web3(Web3.HTTPProvider(node_endpoint, request_kwargs={'timeout': 300}))
         contract_abi = CONTRACT_ARTIFACT['abi']
         model_contract = w3.eth.contract(
             address=self.address, abi=contract_abi)
@@ -154,4 +159,3 @@ class Eternal:
             Logger.success(
                 f"Prediction saved to {output_path}.")
         return output_numpy
-    

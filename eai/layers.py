@@ -5,7 +5,8 @@ class InputLayer:
         elif "batch_input_shape" in cfg:
             self.batch_input_shape = cfg["batch_input_shape"]
         else:
-            raise Exception("batch_shape or batch_input_shape is required for InputLayer")
+            raise Exception(
+                "batch_shape or batch_input_shape is required for InputLayer")
 
     def get_layer_config(self):
         return {"batch_input_shape": self.batch_input_shape}
@@ -31,7 +32,6 @@ class Dense:
 
     def get_layer_config(self):
         return {"units": self.units, "activation": self.activation}
-
 
 
 class Rescale:
@@ -82,9 +82,10 @@ class AveragePooling2D:
         self.strides = cfg["strides"]
         assert "padding" in cfg, "padding is required for MaxPooling2D"
         self.padding = cfg["padding"]
-    
+
     def get_layer_config(self):
         return {"pool_size": self.pool_size, "strides": self.strides, "padding": self.padding}
+
 
 class SimpleRNN:
     def __init__(self, cfg):
@@ -120,27 +121,30 @@ class LSTM:
     def get_layer_config(self):
         return {"units": self.units, "activation": self.activation, "recurrent_activation": self.recurrent_activation}
 
-    
+
 class Add:
     def __init__(self, cfg):
         pass
 
     def get_layer_config(self):
         return {}
-        
+
+
 class Linear:
     def __init__(self, cfg):
         pass
 
     def get_layer_config(self):
         return {}
-    
+
+
 class Sigmoid:
     def __init__(self, cfg):
         pass
 
     def get_layer_config(self):
         return {}
+
 
 class ReLU:
     def __init__(self, cfg):
@@ -158,17 +162,19 @@ class Softmax:
 
     def get_layer_config(self):
         return {"axis": self.axis}
-    
+
+
 class Flatten:
     def __init__(self, cfg):
         pass
 
     def get_layer_config(self):
         return {}
-    
+
+
 class Activation:
     def __init__(self, cfg):
-        activation_name = cfg.get("activation", None) 
+        activation_name = cfg.get("activation", None)
         if activation_name == "relu":
             self.activation = ReLU(cfg)
         elif activation_name == "sigmoid":
@@ -179,6 +185,6 @@ class Activation:
             self.activation = Linear(cfg)
         else:
             raise Exception(f"Activation {activation_name} is not supported")
-        
+
     def get_layer_config(self):
         return self.activation.get_layer_config()

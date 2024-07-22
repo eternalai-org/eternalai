@@ -20,7 +20,7 @@ class ModelExporter:
             list: List of inbound node data for Keras 2.
         """
         ret = []
-        build_config = layer.get("build_config", {"input_shape": []}) 
+        build_config = layer.get("build_config", {"input_shape": []})
         inbound_nodes = layer["inbound_nodes"]
         inputs = build_config["input_shape"]
         if len(inputs) > 1:
@@ -46,7 +46,7 @@ class ModelExporter:
                 })
                 ret.append(inbound_node_data)
         return ret
-    
+
     def _export_inbound_nodes_keras3(self, layer, layer_indices):
         """
         Export inbound nodes of a given layer for Keras 3.
@@ -59,7 +59,7 @@ class ModelExporter:
             list: List of inbound node data.
         """
         ret = []
-        build_config = layer.get("build_config", {"input_shape": []}) 
+        build_config = layer.get("build_config", {"input_shape": []})
         inbound_nodes = layer["inbound_nodes"]
         inputs = build_config["input_shape"]
         if len(inputs) > 1:
@@ -84,7 +84,7 @@ class ModelExporter:
                         "shape": inputs
                     })
                 ret.append(inbound_node_data)
-    
+
         return ret
 
     def _export_model_graph(self, model):
@@ -206,10 +206,12 @@ class ModelExporter:
         # Export the weights
         weights = self._export_weights(model)
         # Create a hash of the model graph
-        hashed_graph = hashlib.sha256(json.dumps(model_graph, sort_keys=True).encode()).hexdigest()
+        hashed_graph = hashlib.sha256(json.dumps(
+            model_graph, sort_keys=True).encode()).hexdigest()
 
         # Create a hash of the weights
-        hashed_weights = hashlib.sha256(json.dumps(weights).encode()).hexdigest()
+        hashed_weights = hashlib.sha256(
+            json.dumps(weights).encode()).hexdigest()
 
         # Concatenate the two hashes
         hashed_model = f"{hashed_graph}{hashed_weights}"

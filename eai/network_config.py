@@ -1,7 +1,7 @@
 GAS_LIMIT = 99_000_000
 CHUNK_LEN = 8000
 NETWORK = {
-    "testnet":{
+    "testnet": {
         "NODE_ENDPOINT": "https://eternal-ai3.tc.l2aas.com/rpc",
         "REGISTER_ENDPOINT": "https://api-dojo.dev2.eternalai.org/api/dojo/register-model",
         "LIST_MODEL_ENDPOINT": "https://api-dojo.dev2.eternalai.org/api/dojo/list-training-requests",

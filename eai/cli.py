@@ -1,7 +1,7 @@
 import os
 import sys
 import argparse
-import requests 
+import requests
 import numpy as np
 from eai.version import __version__
 from eai.utils import Logger, ENV_PATH
@@ -12,18 +12,23 @@ from eai.func import transform, check, get_model
 ETHER_PER_WEI = 10**18
 DEFAULT_NETWORK = "testnet"
 
+
 def parse_args():
     parser = argparse.ArgumentParser(
         description="Tool for managing and deploying machine learning models on-chain."
     )
 
-    subparsers = parser.add_subparsers(dest='command', help="Commands to execute for EternalAI")
+    subparsers = parser.add_subparsers(
+        dest='command', help="Commands to execute for EternalAI")
     subparsers.add_parser('version', help="Show the version of the toolkit.")
     # Wallet command
-    parser_wallet = subparsers.add_parser('wallet', help="Commands to execute for wallet operations")
-    wallet_commands = parser_wallet.add_subparsers(dest='subcommand', help="Subcommands to execute for wallet")
+    parser_wallet = subparsers.add_parser(
+        'wallet', help="Commands to execute for wallet operations")
+    wallet_commands = parser_wallet.add_subparsers(
+        dest='subcommand', help="Subcommands to execute for wallet")
 
-    wallet_create = wallet_commands.add_parser('create', help='Create a new wallet')
+    wallet_create = wallet_commands.add_parser(
+        'create', help='Create a new wallet')
     wallet_create.add_argument(
         "--network",
         action='store',
@@ -31,7 +36,8 @@ def parse_args():
         type=str,
         help=f"Network mode. Specify the network configuration. Default is {DEFAULT_NETWORK}."
     )
-    wallet_import = wallet_commands.add_parser('import', help='Import a wallet from private key')
+    wallet_import = wallet_commands.add_parser(
+        'import', help='Import a wallet from private key')
     wallet_import.add_argument(
         "--private-key",
         "-p",
@@ -46,8 +52,10 @@ def parse_args():
         type=str,
         help=f"Network mode. Specify the network configuration. Default is {DEFAULT_NETWORK}."
     )
-    wallet_balance = wallet_commands.add_parser('balance', help='Check the balance of the wallet')
-    wallet_transactions = wallet_commands.add_parser('transactions', help='List all transactions for the wallet')
+    wallet_balance = wallet_commands.add_parser(
+        'balance', help='Check the balance of the wallet')
+    wallet_transactions = wallet_commands.add_parser(
+        'transactions', help='List all transactions for the wallet')
     wallet_transactions.add_argument(
         "--output-path",
         "-o",
@@ -64,7 +72,8 @@ def parse_args():
         help=f"Network mode. Specify the network configuration. Default is {DEFAULT_NETWORK}."
     )
 
-    wallet_faucet = wallet_commands.add_parser('faucet', help='Request testnet ether from the faucet')
+    wallet_faucet = wallet_commands.add_parser(
+        'faucet', help='Request testnet ether from the faucet')
     wallet_faucet.add_argument(
         "--network",
         action='store',
@@ -74,10 +83,13 @@ def parse_args():
     )
 
     # Eternal command
-    parser_eternal = subparsers.add_parser('eternal', help='Commands to execute for eternal operations')
-    eternal_commands = parser_eternal.add_subparsers(dest='subcommand', help="Subcommands to execute for eternal")
+    parser_eternal = subparsers.add_parser(
+        'eternal', help='Commands to execute for eternal operations')
+    eternal_commands = parser_eternal.add_subparsers(
+        dest='subcommand', help="Subcommands to execute for eternal")
 
-    eternal_transform = eternal_commands.add_parser('transform', help='Transform a Keras model to the EternalAI chain')
+    eternal_transform = eternal_commands.add_parser(
+        'transform', help='Transform a Keras model to the EternalAI chain')
     eternal_transform.add_argument(
         "--format",
         action='store',
@@ -125,7 +137,8 @@ def parse_args():
         help="Output path for saving transformed model metadata."
     )
 
-    eternal_list = eternal_commands.add_parser('list', help='List all deployed models')
+    eternal_list = eternal_commands.add_parser(
+        'list', help='List all deployed models')
     eternal_list.add_argument(
         "--network",
         action='store',
@@ -141,7 +154,8 @@ def parse_args():
         type=str,
         help="Output path for saving deployed models list."
     )
-    eternal_check = eternal_commands.add_parser('check', help='Check the model format')
+    eternal_check = eternal_commands.add_parser(
+        'check', help='Check the model format')
     eternal_check.add_argument(
         "--format",
         action='store',
@@ -160,6 +174,7 @@ def parse_args():
     )
     eternal_check.add_argument(
         "--url",
+        "-u",
         action='store',
         default=None,
         type=str,
@@ -174,18 +189,23 @@ def parse_args():
         help="Output path for saving check result."
     )
     # Call command
-    parser_call = subparsers.add_parser('call', help='Commands to execute for call operations')
-    call_commands = parser_call.add_subparsers(dest='subcommand', help="Subcommands to execute for call")
+    parser_call = subparsers.add_parser(
+        'call', help='Commands to execute for call operations')
+    call_commands = parser_call.add_subparsers(
+        dest='subcommand', help="Subcommands to execute for call")
 
-    call_predict = call_commands.add_parser('predict', help="Call the predict function of a deployed model")
+    call_predict = call_commands.add_parser(
+        'predict', help="Call the predict function of a deployed model")
     call_predict.add_argument(
         "--input",
+        "-i",
         action='store',
         type=str,
         help="Input data for 'eai call predict' command."
     )
     call_predict.add_argument(
         "--eternal-address",
+        "-e",
         action='store',
         type=str,
         help="Address of the model for 'eai call' command."
@@ -199,6 +219,7 @@ def parse_args():
         help="Output path for saving prediction result."
     )
     return parser.parse_known_args()
+
 
 def create_wallet(**kwargs):
     account = create_web3_account()
@@ -214,6 +235,7 @@ def create_wallet(**kwargs):
             os.environ[key] = str(value)
     Logger.success("Wallet created and set successfully.")
 
+
 def import_wallet(**kwargs):
     if kwargs['private-key'] is None:
         Logger.warning(
@@ -228,6 +250,7 @@ def import_wallet(**kwargs):
             f.write(f"{key}={value}\n")
             os.environ[key] = str(value)
     Logger.success("Wallet imported and set successfully.")
+
 
 def wallet_balance():
     if "PRIVATE_KEY" not in os.environ:
@@ -263,6 +286,7 @@ def wallet_balance():
         Logger.error("Failed to get balance.")
     return balance
 
+
 def wallet_transactions(**kwargs):
     if "PRIVATE_KEY" not in os.environ:
         Logger.warning(
@@ -275,7 +299,7 @@ def wallet_transactions(**kwargs):
     response = requests.get(url)
     if response.status_code == 200:
         data = response.json()
-        transactions = data.get("result", []) 
+        transactions = data.get("result", [])
     for idx, transaction in enumerate(transactions):
         tx_hash = transaction["hash"]
         timeStamp = transaction["timeStamp"]
@@ -287,7 +311,8 @@ def wallet_transactions(**kwargs):
                 timeStamp = transaction["timeStamp"]
                 f.write(f"tx: {tx_hash}, timestamp: {timeStamp}.\n")
         Logger.success(f"Transactions written to {kwargs['output-path']}.")
-            
+
+
 def wallet_faucet(**kwargs):
     if "PRIVATE_KEY" not in os.environ:
         Logger.warning(
@@ -306,7 +331,8 @@ def wallet_faucet(**kwargs):
     else:
         Logger.warning("'eai wallet faucet' is only available on testnet.")
         sys.exit(2)
-    
+
+
 def handle_wallet(args):
     if args.subcommand == "create":
         kwargs = {
@@ -333,8 +359,10 @@ def handle_wallet(args):
         }
         wallet_faucet(**kwargs)
     else:
-        Logger.warning(f"Subcommand {args.subcommand} not work for eai {args.command}.")
+        Logger.warning(
+            f"Subcommand {args.subcommand} not work for eai {args.command}.")
         sys.exit(2)
+
 
 def eternal_transform(**kwargs):
     if "PRIVATE_KEY" not in os.environ:
@@ -353,9 +381,11 @@ def eternal_transform(**kwargs):
                 temp_file_name = temp_file.name + ".keras"
             os.system(f"wget {kwargs['url']} -O {temp_file_name}")
             kwargs['file'] = temp_file_name
-    
-    eternal = transform(kwargs['file'], kwargs['name'], kwargs['format'], network_mode = kwargs['network'])
+
+    eternal = transform(kwargs['file'], kwargs['name'],
+                        kwargs['format'], network_mode=kwargs['network'])
     eternal.to_json(kwargs['output-path'])
+
 
 def eternal_check(**kwargs):
     if kwargs['file'] is None:
@@ -371,6 +401,7 @@ def eternal_check(**kwargs):
             os.system(f"wget {kwargs['url']} -O {temp_file_name}")
             kwargs['file'] = temp_file_name
     check(kwargs['file'], kwargs['format'], kwargs['output-path'])
+
 
 def eternal_list(**kwargs):
     if "PRIVATE_KEY" not in os.environ:
@@ -399,7 +430,9 @@ def eternal_list(**kwargs):
                 for model_info_str in deployed_models:
                     f.write(f"{model_info_str}\n")
     else:
-        Logger.error(f"Failed to get deployed models from EternalAI's {network}.")
+        Logger.error(
+            f"Failed to get deployed models from EternalAI's {network}.")
+
 
 def handle_eternal(args):
     if args.subcommand == "transform":
@@ -427,14 +460,17 @@ def handle_eternal(args):
         }
         eternal_list(**kwargs)
     else:
-        Logger.warning(f"Subcommand {args.subcommand} not work for eai {args.command}.")
+        Logger.warning(
+            f"Subcommand {args.subcommand} not work for eai {args.command}.")
         sys.exit(2)
+
 
 def call_predict(**kwargs):
     model = get_model(kwargs['eternal-address'])
     input_data = np.load(kwargs['input'])
     output_arr = model.predict([input_data], kwargs['output-path'])
     return output_arr
+
 
 def handle_call(args):
     if args.subcommand == "predict":
@@ -445,8 +481,10 @@ def handle_call(args):
         }
         call_predict(**kwargs)
     else:
-        Logger.warning(f"Subcommand {args.subcommand} not work for eai {args.command}.")
+        Logger.warning(
+            f"Subcommand {args.subcommand} not work for eai {args.command}.")
         sys.exit(2)
+
 
 @Logger.catch
 def main():
@@ -463,6 +501,7 @@ def main():
         handle_eternal(known_args)
     elif known_args.command == "call":
         handle_call(known_args)
-        
+
+
 if (__name__ == "__main__"):
     main()

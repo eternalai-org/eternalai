@@ -11,28 +11,31 @@ import importlib
 
 
 def register(address, name, owner):
-        Logger.info("Registering model ...")
-        register_endpoint = NETWORK[os.environ["NETWORK_MODE"]]["REGISTER_ENDPOINT"]
-        try:
-            headers = {"Content-Type": "application/json"}
-            data = {
-                "model_address": address,
-                "model_name": name,
-                "owner_address": owner
-            }
-            response = requests.post(
-                register_endpoint, headers=headers, json=data)
-            response.raise_for_status()  # Raises an HTTPError for bad responses (4xx or 5xx)
+    Logger.info("Registering model ...")
+    register_endpoint = NETWORK[os.environ["NETWORK_MODE"]
+                                ]["REGISTER_ENDPOINT"]
+    try:
+        headers = {"Content-Type": "application/json"}
+        data = {
+            "model_address": address,
+            "model_name": name,
+            "owner_address": owner
+        }
+        response = requests.post(
+            register_endpoint, headers=headers, json=data)
+        response.raise_for_status()  # Raises an HTTPError for bad responses (4xx or 5xx)
 
-            if response.json().get("status") == 1:
-                Logger.success("Model registered successfully.")
-            else:
-                Logger.error("Failed to register model. Response status not 1.")
-        except Exception as e:
-            Logger.error(f"An unexpected error occurred: {e}")
+        if response.json().get("status") == 1:
+            Logger.success("Model registered successfully.")
+        else:
+            Logger.error("Failed to register model. Response status not 1.")
+    except Exception as e:
+        Logger.error(f"An unexpected error occurred: {e}")
 
-def transform(model, model_name: str = "Unnamed Model", format = "keras3", network_mode: str = None):
-    assert format in ["keras2", "keras3"], "Format must be either 'keras2' or 'keras3'"
+
+def transform(model, model_name: str = "Unnamed Model", format="keras3", network_mode: str = None):
+    assert format in [
+        "keras2", "keras3"], "Format must be either 'keras2' or 'keras3'"
     network = network_mode if network_mode is not None else os.environ["NETWORK_MODE"]
     handle_keras_version(format)
     import keras
@@ -55,13 +58,13 @@ def transform(model, model_name: str = "Unnamed Model", format = "keras3", netwo
     address = contract.address
     register(address, model_name, publisher())
     try:
-        eai_model = Eternal()
-        eai_model.load(address)
+        eai_model = Eternal(address)
     except Exception as e:
         Logger.error(f"Failed to load model from address: {e}")
     Logger.success(
-        f"Model transformed successfully on EternalAI's {network_mode}. Time taken: {time.time() - start} seconds")
+        f"Model transformed successfully on EternalAI's {network}. Time taken: {time.time() - start} seconds")
     return eai_model
+
 
 def check_keras_model(model, output_path: str = None):
     try:
@@ -109,10 +112,11 @@ def check_keras_model(model, output_path: str = None):
     Logger.info(
         f"Summary: {supported_layers} layers supported, {unsupported_layers} layers not supported.")
     return response
-    
 
-def check(model, format = "keras3", output_path = None):
-    assert format in ["keras2", "keras3"], "Format must be either 'keras2' or 'keras3'"
+
+def check(model, format="keras3", output_path=None):
+    assert format in [
+        "keras2", "keras3"], "Format must be either 'keras2' or 'keras3'"
     handle_keras_version(format)
     import keras
     Logger.info(f"Loading model from {model} ...")
@@ -132,12 +136,12 @@ def check(model, format = "keras3", output_path = None):
     if response["status"] == -1:
         return False
     return True
-    
+
 
 def layers():
     return list(LayerType.__members__.keys())
 
+
 def get_model(model: str):
-    eternal = Eternal()
-    eternal.load(model)
+    eternal = Eternal(model)
     return eternal

@@ -27,7 +27,7 @@ class LayerConfig:
         self.layerTypeIndex = layerTypeIndex
         self.layerAddress = layerAddress
         self.inputIndices = inputIndices
-        
+
     def toContractParams(self):
         return (self.layerTypeIndex, self.layerAddress, self.inputIndices)
 
@@ -77,6 +77,7 @@ class ModelDeployer():
             logger.info(f"Layer {i}: {layer['class_name']}, type: {layerType}")
             inputIndices = list(
                 map(lambda node: node['args'][0]['idx'], layer['inbound_nodes']))
+
             if layerType == LayerType.Dense:
                 inputNode = layer['inbound_nodes'][0]['args'][0]
                 inputUnits = inputNode['shape'][1]
@@ -105,8 +106,6 @@ class ModelDeployer():
                 configData = encode([], [])
             elif layerType == LayerType.Linear:
                 configData = encode([], [])
-            elif layerType == LayerType.Add:
-                configData = encode([], [])
             elif layerType == LayerType.InputLayer:
                 dim = layer['layer_config']['batch_input_shape']
                 pos = index_last(dim, None)
@@ -129,18 +128,6 @@ class ModelDeployer():
                     configData = encode(["uint8", "uint[]"], [
                                         InputType.Tensor3D.value, [n, m, p]])
             elif layerType == LayerType.MaxPooling2D:
-                f_w = layer['layer_config']['pool_size'][0]
-                f_h = layer['layer_config']['pool_size'][1]
-                s_w = layer['layer_config']['strides'][0]
-                s_h = layer['layer_config']['strides'][1]
-                padding = layer['layer_config']['padding']
-
-                configData = encode(["uint[2]", "uint[2]", "uint8"], [
-                    [f_w, f_h],
-                    [s_w, s_h],
-                    getPaddingType(padding).value,
-                ])
-            elif layerType == LayerType.AveragePooling2D:
                 f_w = layer['layer_config']['pool_size'][0]
                 f_h = layer['layer_config']['pool_size'][1]
                 s_w = layer['layer_config']['strides'][0]
@@ -213,14 +200,17 @@ class ModelDeployer():
         logger.info(
             f'Weights size: {len(weights)}, total length: {len(weights) * 32} bytes')
         txIdx = 0
-        for l in range(0, start_idx, self.chunk_len):
+        uploading_chunk_len = min(self.chunk_len, int(len(weights)/2))
+        logger.info(
+            f'Uploading weights with chunk length: {uploading_chunk_len}...')
+        for l in range(0, start_idx, uploading_chunk_len):
             logger.success(
                 f'Appending weights #{txIdx} has already been done...')
             txIdx += 1
         logger.info(f"Uploading weights from index {start_idx} ...")
-        for l in range(start_idx, len(weights), self.chunk_len):
+        for l in range(start_idx, len(weights), uploading_chunk_len):
             weightsToUpload = list(
-                map(fromFloat, weights[l: l + self.chunk_len]))
+                map(fromFloat, weights[l: l + uploading_chunk_len]))
             logger.info(f'Appending weights #{txIdx}...')
             appendWeightTxHash = model.functions.appendWeights(weightsToUpload, l + 1).transact({
                 "from": self.address,
@@ -253,7 +243,7 @@ class ModelDeployer():
         tx = tx_hash.hex()
         logger.success(
             f'Layer {layer_data.layerName} has been deployed to address {contract_address}, tx={tx}.')
-        return  {"layerTypeIndex": layer_data.layerType.value, "address": contract_address, "inputIndices": layer_data.inputIndices, "tx": tx}
+        return {"layerTypeIndex": layer_data.layerType.value, "address": contract_address, "inputIndices": layer_data.inputIndices, "tx": tx}
 
     def deploy_model(self, model_data):
         assert self.private_key is not None, "Private key is required to deploy contract, please run command 'eai set-private-key' to set private key"
@@ -261,24 +251,27 @@ class ModelDeployer():
         layers = model_data["model_graph"]["layers"]
         weights = model_data["weights"]
         hashed_model = model_data["hashed_model"]
+        hash_value = hashed_model + self.network_mode
         deployed_model_contract = self.cache_data.get(hashed_model, None)
         if deployed_model_contract is not None:
             logger.warning(
-                "Model has already been deployed at address: " + deployed_model_contract["address"]
+                "Model has already been deployed at address: " +
+                deployed_model_contract["address"]
             )
         else:
             logger.info("Deploying FunctionalModel contract...")
             contract_address = self.deploy_from_artifact()
             deployed_model_contract = {}
             deployed_model_contract["address"] = contract_address
-            hash_value = hashed_model + self.network_mode
             self.cache_data[hash_value] = deployed_model_contract
             self._update_cache()
-        contract = self.w3.eth.contract(address=deployed_model_contract["address"], abi=CONTRACT_ARTIFACT['abi'])
+        contract = self.w3.eth.contract(
+            address=deployed_model_contract["address"], abi=CONTRACT_ARTIFACT['abi'])
         layersData, totalWeights = self.get_model_config(layers)
         logger.info("Deploying layer contracts...")
         layerConfigs = []
-        deployed_layer_configs = deployed_model_contract.get("layer_configs", [])
+        deployed_layer_configs = deployed_model_contract.get(
+            "layer_configs", [])
         for idx, deployed_layer_config in enumerate(deployed_layer_configs):
             layerConfigs.append(
                 LayerConfig(
@@ -290,7 +283,7 @@ class ModelDeployer():
             logger.success(
                 f'Layer {layersData[idx].layerName} has already been deployed to address {deployed_layer_config["address"]}, tx={deployed_layer_config["tx"]}.')
         for idx in range(len(layerConfigs), len(layersData)):
-            config= self.deploy_layer(layersData[idx])
+            config = self.deploy_layer(layersData[idx])
             layerConfigs.append(
                 LayerConfig(
                     config["layerTypeIndex"],
@@ -300,7 +293,7 @@ class ModelDeployer():
             )
             deployed_layer_configs.append(config)
             deployed_model_contract["layer_configs"] = deployed_layer_configs
-            self.cache_data[hashed_model] = deployed_model_contract
+            self.cache_data[hash_value] = deployed_model_contract
             self._update_cache()
         layerConfigParams = list(
             map(lambda x: x.toContractParams(), layerConfigs))
@@ -316,16 +309,29 @@ class ModelDeployer():
             if receipt['status'] != 1:
                 raise Exception('tx failed', receipt)
             deployed_model_contract["is_constructed"] = True
-            self.cache_data[hashed_model] = deployed_model_contract
+            self.cache_data[hash_value] = deployed_model_contract
             self._update_cache()
-            logger.success(f"Model constructed successfully, tx:  {constructModelTxHash.hex()}, gas used: {receipt.gasUsed}.")
+            logger.success(
+                f"Model constructed successfully, tx:  {constructModelTxHash.hex()}, gas used: {receipt.gasUsed}.")
         else:
             data = contract.functions.model().call()
             required_weights = data[1]
-            assert len(weights) == required_weights, f"Expected {required_weights} weights, got {len(weights)}"
+            assert len(
+                weights) == required_weights, f"Expected {required_weights} weights, got {len(weights)}"
             appended_weights = data[2]
-        self.uploadModelWeights(contract, weights, appended_weights)
+        retry = 2
+        logger.info(
+            f"Uploading weights with chunk length: {self.chunk_len}...")
+        while retry > 0:
+            try:
+                self.uploadModelWeights(contract, weights, appended_weights)
+                break
+            except Exception as e:
+                retry -= 1
+                self.chunk_len -= 1000
+                logger.warning(f"Retrying with chunk length: {self.chunk_len}")
+
         logger.success("Model deployed at address: " + contract.address)
-        self.cache_data.pop(hashed_model)
+        self.cache_data.pop(hash_value)
         self._update_cache()
         return contract
