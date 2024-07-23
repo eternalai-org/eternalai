@@ -3,14 +3,16 @@ import sys
 import argparse
 import requests
 import numpy as np
+from web3 import Web3
 from eai.version import __version__
 from eai.utils import Logger, ENV_PATH
 from eai.utils import create_web3_account, publisher
 from eai.network_config import NETWORK
-from eai.func import transform, check, get_model
+from eai.artifacts.collection.ModelCollection import CONTRACT_ARTIFACT
+from eai.func import transform, check, get_model, transfer_model
 
 ETHER_PER_WEI = 10**18
-DEFAULT_NETWORK = "testnet"
+DEFAULT_NETWORK = "mainnet"
 
 
 def parse_args():
@@ -30,9 +32,17 @@ def parse_args():
     wallet_create = wallet_commands.add_parser(
         'create', help='Create a new wallet')
     wallet_create.add_argument(
+        '--file',
+        '-f',
+        action='store',
+        default="secret.txt",
+        type=str,
+        help="Path to dump the wallet"
+    )
+    wallet_create.add_argument(
         "--network",
         action='store',
-        default=DEFAULT_NETWORK,
+        default=None,
         type=str,
         help=f"Network mode. Specify the network configuration. Default is {DEFAULT_NETWORK}."
     )
@@ -44,6 +54,12 @@ def parse_args():
         action='store',
         type=str,
         help="Private key for the wallet"
+    )
+    wallet_import.add_argument(
+        "--file",
+        action='store',
+        type=str,
+        help="Path to dump the wallet"
     )
     wallet_import.add_argument(
         "--network",
@@ -71,7 +87,6 @@ def parse_args():
         type=str,
         help=f"Network mode. Specify the network configuration. Default is {DEFAULT_NETWORK}."
     )
-
     wallet_faucet = wallet_commands.add_parser(
         'faucet', help='Request testnet ether from the faucet')
     wallet_faucet.add_argument(
@@ -80,6 +95,53 @@ def parse_args():
         default=DEFAULT_NETWORK,
         type=str,
         help=f"Network mode. Specify the network configuration. Default is {DEFAULT_NETWORK}."
+    )
+    wallet_receive = wallet_commands.add_parser(
+        'receive', help='Address to receive EAI tokens')
+    wallet_send = wallet_commands.add_parser(
+        'send', help='Send EAI tokens to an address')
+    wallet_send.add_argument(
+        "--recipient",
+        "-r",
+        action='store',
+        type=str,
+        help="Address of the recipient."
+    )
+    wallet_send.add_argument(
+        "--eternal-id",
+        action='store',
+        type=str,
+        help="EternalAI model ID."
+    )
+    wallet_send.add_argument(
+        "--eternal-address",
+        action='store',
+        type=str,
+        help="EternalAI model address."
+    )
+    wallet_send.add_argument(
+        "--network",
+        action='store',
+        default=DEFAULT_NETWORK,
+        type=str,
+        help=f"Network mode. Specify the network configuration. Default is {DEFAULT_NETWORK}."
+    )
+    wallet_deposit = wallet_commands.add_parser(
+        'deposit', help='Generate deposit address')
+    wallet_deposit.add_argument(
+        "--output-path",
+        "-o",
+        action='store',
+        default=None,
+        type=str,
+        help="Output path for saving deposit metadata."
+    )
+    wallet_deposit.add_argument(
+        "--network",
+        action='store',
+        default=None,
+        type=str,
+        help="Network mode. Specify the network configuration."
     )
 
     # Eternal command
@@ -221,26 +283,45 @@ def parse_args():
     return parser.parse_known_args()
 
 
-def create_wallet(**kwargs):
+def wallet_create(**kwargs):
+    if "PRIVATE_KEY" in os.environ:
+        Logger.warning(
+            "Wallet already set. This will overwrite the existing wallet in .env file."
+        )
     account = create_web3_account()
+    network = kwargs['network'] if kwargs['network'] is not None else DEFAULT_NETWORK
     Logger.success(f"Private key: {account['private_key']}")
     Logger.success(f"Address: {account['address']}")
     env_config = {
         "PRIVATE_KEY": account['private_key'],
-        "NETWORK_MODE": kwargs['network'] if kwargs['network'] is not None else DEFAULT_NETWORK
+        "NETWORK_MODE": network
     }
     with open(ENV_PATH, "w") as f:
         for key, value in env_config.items():
             f.write(f"{key}={value}\n")
             os.environ[key] = str(value)
-    Logger.success("Wallet created and set successfully.")
+    if not os.path.exists(network):
+        os.makedirs(network)
+    file_path = os.path.join(network, kwargs['file'])
+    with open(file_path, "w") as f:
+        f.write(f"{account['private_key']}")
+    Logger.success(f"Wallet created and set successfully. Private key written to {file_path}.")
 
 
 def import_wallet(**kwargs):
-    if kwargs['private-key'] is None:
+    if "PRIVATE_KEY" in os.environ:
         Logger.warning(
-            '--private-key must be provided for command "eai wallet import"')
-        sys.exit(2)
+            "Wallet already set. This will overwrite the existing wallet in .env file."
+        )
+    if kwargs['private-key'] is None:
+        if kwargs['file'] is None:
+            Logger.error(
+                "Please provide either --private-key or --file for importing wallet.")
+            sys.exit(2)
+        else:
+            with open(kwargs['file'], "r") as f:
+                private_key = f.read()
+            kwargs['private-key'] = private_key
     env_config = {
         "PRIVATE_KEY": kwargs['private-key'],
         "NETWORK_MODE": kwargs['network'] if kwargs['network'] is not None else DEFAULT_NETWORK
@@ -254,7 +335,7 @@ def import_wallet(**kwargs):
 
 def wallet_balance():
     if "PRIVATE_KEY" not in os.environ:
-        Logger.warning(
+        Logger.error(
             "Private key not found. Please use command 'eai wallet create' or 'eai wallet import' to create a new wallet or restore from private key.")
         sys.exit(2)
     balance = {
@@ -289,7 +370,7 @@ def wallet_balance():
 
 def wallet_transactions(**kwargs):
     if "PRIVATE_KEY" not in os.environ:
-        Logger.warning(
+        Logger.error(
             "Private key not found. Please use command 'eai wallet create' or 'eai wallet import' to create a new wallet or restore from private key.")
         sys.exit(2)
     network = kwargs["network"] if kwargs["network"] is not None else os.environ["NETWORK_MODE"]
@@ -315,7 +396,7 @@ def wallet_transactions(**kwargs):
 
 def wallet_faucet(**kwargs):
     if "PRIVATE_KEY" not in os.environ:
-        Logger.warning(
+        Logger.error(
             "Private key not found. Please use command 'eai wallet create' or 'eai wallet import' to create a new wallet or restore from private key.")
         sys.exit(2)
     network = kwargs["network"] if kwargs["network"] is not None else os.environ["NETWORK_MODE"]
@@ -329,20 +410,87 @@ def wallet_faucet(**kwargs):
             error = response.get("error", "Something went wrong.")
             Logger.error(f"Faucet request failed: {error}")
     else:
-        Logger.warning("'eai wallet faucet' is only available on testnet.")
+        Logger.error("'eai wallet faucet' is only available on testnet.")
         sys.exit(2)
+
+
+def wallet_receive():
+    if "PRIVATE_KEY" not in os.environ:
+        Logger.error(
+            "Private key not found. Please use command 'eai wallet create' or 'eai wallet import' to create a new wallet or restore from private key.")
+        sys.exit(2)
+    address = publisher()
+    Logger.success(f"Address: {address}")
+    return address
+
+
+def wallet_send(**kwargs):
+    if "PRIVATE_KEY" not in os.environ:
+        Logger.error(
+            "Private key not found. Please use command 'eai wallet create' or 'eai wallet import' to create a new wallet or restore from private key.")
+        sys.exit(2)
+    if kwargs["recipient"] is None:
+        Logger.error(
+            "Recipient address must be provided for 'eai wallet send' command.")
+        sys.exit(2)
+    if kwargs["eternal-id"] is None:
+        if kwargs["eternal-address"] is None:
+            Logger.error(
+                "Either EternalAI model ID or address must be provided for 'eai wallet send' command.")
+            sys.exit(2)
+        else:
+            address = kwargs["eternal-address"]
+            endpoint = NETWORK[os.environ["NETWORK_MODE"]]["MODEL_INFO_BY_ADDRESS"]
+            url = f"{endpoint}/{address}"
+            response = requests.get(url)
+            response = response.json()
+            if response["status"] == 1:
+                kwargs["eternal-id"] = response["data"]["model_id"]
+    transfer_model(kwargs["eternal-id"], kwargs["recipient"], kwargs["network"])
+
+def wallet_deposit(**kwargs):
+    if "PRIVATE_KEY" not in os.environ:
+        Logger.error(
+            "Private key not found. Please use command 'eai wallet create' or 'eai wallet import' to create a new wallet or restore from private key.")
+        sys.exit(2)
+    network = kwargs["network"] if kwargs["network"] is not None else os.environ["NETWORK_MODE"]
+    output_path = kwargs["output-path"]
+    if network == "testnet":
+        Logger.error("'eai wallet deposit' is not available on testnet.")
+        sys.exit(2)
+    deposit_endpoint = NETWORK[network]["DEPOSIT_ENDPOINT"]
+    payload = {
+        "tcAddress": publisher(),
+        "tcTokenID": "0x0000000000000000000000000000000000000000",
+        "toChainID": 43338,
+        "fromChainID": 1
+    }
+    headers = {
+        "Content-Type": "application/json"
+    }
+    response = requests.post(
+        deposit_endpoint, json=payload, headers=headers).json()
+    if response["status"]:
+        deposit_address = response["data"]["depositAddress"]
+        Logger.success(f"Deposit address: {deposit_address}")
+        if output_path is not None:
+            with open(output_path, "w") as f:
+                f.write(f"Deposit address: {deposit_address}")
+            Logger.success(f"Deposit address written to {output_path}.")
 
 
 def handle_wallet(args):
     if args.subcommand == "create":
         kwargs = {
+            "file": args.file,
             "network": args.network
         }
-        create_wallet(**kwargs)
+        wallet_create(**kwargs)
     elif args.subcommand == "import":
         kwargs = {
             "private-key": args.private_key,
-            "network": args.network
+            "network": args.network,
+            'file': args.file   
         }
         import_wallet(**kwargs)
     elif args.subcommand == "transactions":
@@ -358,20 +506,36 @@ def handle_wallet(args):
             "network": args.network
         }
         wallet_faucet(**kwargs)
+    elif args.subcommand == "receive":
+        wallet_receive()
+    elif args.subcommand == "send":
+        kwargs = {
+            "recipient": args.recipient,
+            "eternal-id": args.eternal_id,
+            "eternal-address": args.eternal_address,
+            "network": args.network
+        }
+        wallet_send(**kwargs)
+    elif args.subcommand == "deposit":
+        kwargs = {
+            "output-path": args.output_path,
+            "network": args.network
+        }
+        wallet_deposit(**kwargs)
     else:
-        Logger.warning(
+        Logger.error(
             f"Subcommand {args.subcommand} not work for eai {args.command}.")
         sys.exit(2)
 
 
 def eternal_transform(**kwargs):
     if "PRIVATE_KEY" not in os.environ:
-        Logger.warning(
+        Logger.error(
             "Private key not found. Please use command 'eai wallet create' or 'eai wallet import' to create a new wallet or restore from private key.")
         sys.exit(2)
     if kwargs['file'] is None:
         if kwargs['url'] is None:
-            Logger.warning(
+            Logger.error(
                 'Please provide either --file or --url for the model.')
             sys.exit(2)
         else:
@@ -390,7 +554,7 @@ def eternal_transform(**kwargs):
 def eternal_check(**kwargs):
     if kwargs['file'] is None:
         if kwargs['url'] is None:
-            Logger.warning(
+            Logger.error(
                 'Please provide either --file or --url for the model.')
             sys.exit(2)
         else:
@@ -405,7 +569,7 @@ def eternal_check(**kwargs):
 
 def eternal_list(**kwargs):
     if "PRIVATE_KEY" not in os.environ:
-        Logger.warning(
+        Logger.error(
             "Private key not found. Please use command 'eai wallet create' or 'eai wallet import' to create a new wallet or restore from private key.")
         sys.exit(2)
     network = kwargs["network"] if kwargs["network"] is not None else os.environ["NETWORK_MODE"]
@@ -460,7 +624,7 @@ def handle_eternal(args):
         }
         eternal_list(**kwargs)
     else:
-        Logger.warning(
+        Logger.error(
             f"Subcommand {args.subcommand} not work for eai {args.command}.")
         sys.exit(2)
 
@@ -481,7 +645,7 @@ def handle_call(args):
         }
         call_predict(**kwargs)
     else:
-        Logger.warning(
+        Logger.error(
             f"Subcommand {args.subcommand} not work for eai {args.command}.")
         sys.exit(2)
 
@@ -490,7 +654,7 @@ def handle_call(args):
 def main():
     known_args, unknown_args = parse_args()
     for arg in unknown_args:
-        Logger.warning(f'unknown command or argument: {arg}')
+        Logger.error(f'unknown command or argument: {arg}')
         sys.exit(2)
 
     if known_args.command == "version":

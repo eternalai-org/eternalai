@@ -143,7 +143,8 @@ class Eternal:
         import time
         start = time.time()
         node_endpoint = NETWORK[network]["NODE_ENDPOINT"]
-        w3 = Web3(Web3.HTTPProvider(node_endpoint, request_kwargs={'timeout': 300}))
+        w3 = Web3(Web3.HTTPProvider(node_endpoint,
+                  request_kwargs={'timeout': 300}))
         contract_abi = CONTRACT_ARTIFACT['abi']
         model_contract = w3.eth.contract(
             address=self.address, abi=contract_abi)

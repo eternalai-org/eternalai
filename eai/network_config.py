@@ -1,5 +1,6 @@
 GAS_LIMIT = 99_000_000
 CHUNK_LEN = 8000
+COLLECTION_ADDRESS="0xB0e91e2Aa27330434Bfc33fF5314C796eD3Ad3c6"
 NETWORK = {
     "testnet": {
         "NODE_ENDPOINT": "https://eternal-ai3.tc.l2aas.com/rpc",
@@ -16,6 +17,7 @@ NETWORK = {
         "LIST_MODEL_ENDPOINT": "https://api-dojo2.eternalai.org/api/dojo/list-training-requests",
         "MODEL_INFO_BY_ADDRESS": "https://api-dojo2.eternalai.org/api/dojo/model-info-by-model-address",
         "MODEL_INFO_BY_ID": "https://api-dojo2.eternalai.org/api/dojo/model-info",
-        "EXPLORER_ENDPOINT": "https://explorer.eternalai.org/api"
+        "EXPLORER_ENDPOINT": "https://explorer.eternalai.org/api",
+        "DEPOSIT_ENDPOINT": "https://bridges-api.eternalai.org/api/generate-deposit-address",
     }
 }

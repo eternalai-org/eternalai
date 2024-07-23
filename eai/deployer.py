@@ -39,12 +39,9 @@ class ModelDeployer():
         self.w3 = Web3(Web3.HTTPProvider(node_endpoint))
         self.private_key = os.environ["PRIVATE_KEY"]
         self.chunk_len = CHUNK_LEN
-        try:
-            self.address = Account.from_key(self.private_key).address
-            self.w3.middleware_onion.add(
-                construct_sign_and_send_raw_middleware(self.private_key))
-        except Exception as e:
-            raise Exception(f"Failed to initialize deployer: {e}")
+        self.address = Account.from_key(self.private_key).address
+        self.w3.middleware_onion.add(
+            construct_sign_and_send_raw_middleware(self.private_key))
         self.cache_data = {}
         self.cache_file = os.path.join(get_script_path(), ".cache")
         if os.path.exists(self.cache_file):

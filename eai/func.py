@@ -1,14 +1,19 @@
+from eth_account import Account
+from web3 import Web3
+from web3.middleware import construct_sign_and_send_raw_middleware
 from eai.utils import publisher
 from eai.utils import Logger, LayerType, handle_keras_version
 import json
 import os
 import requests
-from eai.network_config import NETWORK
+from eai.network_config import NETWORK, COLLECTION_ADDRESS
 from eai.model import Eternal
 from eai.deployer import ModelDeployer
 from eai.exporter import ModelExporter
 import importlib
-
+from eai.artifacts.collection.ModelCollection import CONTRACT_ARTIFACT as COLLECTION_ARTIFACT
+from eai.utils import Logger as logger
+from eth_abi import encode, decode
 
 def register(address, name, owner):
     Logger.info("Registering model ...")
@@ -145,3 +150,36 @@ def layers():
 def get_model(model: str):
     eternal = Eternal(model)
     return eternal
+
+
+def transfer_model(model_id: str, to_address: str, network_mode: str = None):
+    network = network_mode if network_mode is not None else os.environ["NETWORK_MODE"]
+    private_key = os.environ["PRIVATE_KEY"]
+    node_endpoint = NETWORK[network]["NODE_ENDPOINT"]
+    w3 = Web3(Web3.HTTPProvider(node_endpoint,
+                request_kwargs={'timeout': 300}))
+    collection_contract_abi = COLLECTION_ARTIFACT['abi']
+    collection_contract = w3.eth.contract(
+        address=COLLECTION_ADDRESS, abi=collection_contract_abi)
+    from_address = Account.from_key(private_key).address
+    w3.middleware_onion.add(construct_sign_and_send_raw_middleware(private_key))
+
+    model_id_uint = decode(['uint256'], encode(['uint256'], [int(model_id)]))[0]
+
+    logger.info("Approving token transfer...")
+    approve_tx_hash = collection_contract.functions.approve(to_address, model_id_uint).transact({
+        "from": from_address
+    })
+    approve_receipt = w3.eth.wait_for_transaction_receipt(approve_tx_hash)
+    if approve_receipt['status'] != 1:
+        raise Exception('tx failed', approve_receipt)
+    logger.success(f"Approved transfering model with tokenId {model_id_uint} to wallet {to_address} (tx: {approve_tx_hash.hex()})")
+
+    logger.info("Transfering token")
+    transfer_tx_hash = collection_contract.functions.safeTransferFrom(from_address, to_address, model_id_uint).transact({
+        "from": from_address
+    })
+    transfer_receipt = w3.eth.wait_for_transaction_receipt(transfer_tx_hash)
+    if transfer_receipt['status'] != 1:
+        raise Exception('tx failed', transfer_receipt)    
+    logger.success(f"Transfered model with tokenId {model_id} to wallet {to_address} (tx: {transfer_tx_hash.hex()})")
