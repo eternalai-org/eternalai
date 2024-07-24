@@ -591,7 +591,6 @@ def eternal_list(**kwargs):
     network = kwargs["network"] if kwargs["network"] is not None else os.environ["NETWORK_MODE"]
     list_model_endpoint = NETWORK[network]["LIST_MODEL_ENDPOINT"]
     url = f"{list_model_endpoint}?address={publisher()}&public_only=false&limit=20&offset=0"
-    print(url)
     response = requests.get(url).json()
     deployed_models = []
     if response["status"] == 1:
