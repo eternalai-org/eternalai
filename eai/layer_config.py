@@ -1,4 +1,5 @@
 from enum import Enum
+from typing import List
 
 LayerType = Enum('LayerType', [
     'InputLayer',
@@ -8,6 +9,7 @@ LayerType = Enum('LayerType', [
     'MaxPooling2D',
     'AveragePooling2D',
     'Conv2D',
+    'BatchNormalization',
     'Embedding',
     'SimpleRNN',
     'LSTM',
@@ -16,6 +18,10 @@ LayerType = Enum('LayerType', [
     'ReLU',
     'Linear',
     'Add',
+    'Dropout',
+    'GlobalAveragePooling2D',
+    'ZeroPadding2D',
+    'Concatenate'
 ], start=0)
 
 InputType = Enum('InputType', [
@@ -38,3 +44,26 @@ Padding = Enum('Padding', [
     'valid',
     'same',
 ], start=0)
+
+ZeroPaddingFormat = Enum('ZeroPaddingFormat', [
+    'channels_first',
+    'channels_last',
+], start=0)
+
+
+class LayerData:
+    def __init__(self, layerType: LayerType, layerName: str, configData: str, inputIndices: List[int]):
+        self.layerType = layerType
+        self.layerName = layerName
+        self.configData = configData
+        self.inputIndices = inputIndices
+
+
+class LayerConfig:
+    def __init__(self, layerTypeIndex: int, layerAddress: str, inputIndices: List[int]):
+        self.layerTypeIndex = layerTypeIndex
+        self.layerAddress = layerAddress
+        self.inputIndices = inputIndices
+
+    def toContractParams(self):
+        return (self.layerTypeIndex, self.layerAddress, self.inputIndices)

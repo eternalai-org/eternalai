@@ -1,42 +1,28 @@
 import os
 import pickle
+import tqdm
+import time
 from web3 import Web3
 from web3 import Account
 from eth_abi import encode
 from typing import List, Tuple
 from web3.contract import Contract
-from eai.utils import Logger as logger
+from eai.utils import Logger as logger, ETHER_PER_WEI
 from eai.layer_config import LayerType, InputType
+from eai.layer_config import LayerData, LayerConfig
 from web3.middleware import construct_sign_and_send_raw_middleware
 import importlib
-from eai.network_config import GAS_LIMIT, CHUNK_LEN, NETWORK
-from eai.utils import fromFloat, index_last, getLayerType, getActivationType, getPaddingType, get_script_path
-from eai.artifacts.models.FunctionalModel import CONTRACT_ARTIFACT
-
-
-class LayerData:
-    def __init__(self, layerType: LayerType, layerName: str, configData: str, inputIndices: List[int]):
-        self.layerType = layerType
-        self.layerName = layerName
-        self.configData = configData
-        self.inputIndices = inputIndices
-
-
-class LayerConfig:
-    def __init__(self, layerTypeIndex: int, layerAddress: str, inputIndices: List[int]):
-        self.layerTypeIndex = layerTypeIndex
-        self.layerAddress = layerAddress
-        self.inputIndices = inputIndices
-
-    def toContractParams(self):
-        return (self.layerTypeIndex, self.layerAddress, self.inputIndices)
+from colorama import Fore
+from eai.network_config import GAS_LIMIT, CHUNK_LEN, NETWORK, MAX_FEE_PER_GAS, MAX_PRIORITY_FEE_PER_GAS
+from eai.utils import fromFloat, index_last, getLayerType, getActivationType, getPaddingType, get_script_path, getZeroPadding2DType
 
 
 class ModelDeployer():
-    def __init__(self, network: str = None):
+    def __init__(self, network: str = None, call_timeout: int = 60):
         network_mode = network if network is not None else os.environ["NETWORK_MODE"]
         node_endpoint = NETWORK[network_mode]["NODE_ENDPOINT"]
-        self.w3 = Web3(Web3.HTTPProvider(node_endpoint))
+        self.w3 = Web3(Web3.HTTPProvider(node_endpoint,
+                                         request_kwargs={'timeout': call_timeout}))
         self.private_key = os.environ["PRIVATE_KEY"]
         self.chunk_len = CHUNK_LEN
         self.address = Account.from_key(self.private_key).address
@@ -53,22 +39,27 @@ class ModelDeployer():
         with open(self.cache_file, "wb") as f:
             pickle.dump(self.cache_data, f)
 
-    def deploy_from_artifact(self) -> type[Contract]:
-        tx_hash = self.w3.eth.contract(abi=CONTRACT_ARTIFACT['abi'], bytecode=CONTRACT_ARTIFACT['bytecode']).constructor().transact({
+    def _deploy_from_artifact(self, contract_artifact) -> type[Contract]:
+        start = time.time()
+        tx_hash = self.w3.eth.contract(abi=contract_artifact['abi'], bytecode=contract_artifact['bytecode']).constructor().transact({
             "from": self.address,
         })
         receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
+        if receipt['status'] != 1:
+            raise Exception('tx failed', receipt)
+        total_time = time.time() - start
         contract_address = receipt['contractAddress']
+        total_cost = (receipt.gasUsed *
+                      receipt.effectiveGasPrice) / ETHER_PER_WEI
         logger.success(
-            f'Contract has been deployed to address {contract_address}, tx={tx_hash.hex()}.')
-        return contract_address
+            f'Contract has been deployed to address {contract_address}, tx={tx_hash.hex()}, gas used: {receipt.gasUsed}, transaction cost: {total_cost} EAI, total time: {total_time} seconds.')
+        return {"address": contract_address, "tx": tx_hash.hex(), "total_cost": total_cost, "gas_used": receipt.gasUsed, "total_time": total_time}
 
-    def get_model_config(self, layers) -> Tuple[List[LayerData], int]:
+    def _get_model_config(self, layers) -> Tuple[List[LayerData], int]:
         layersData = []
         totalWeights = 0
         for i in range(len(layers)):
             layer = layers[i]
-
             configData = ""
             layerType = getLayerType(layer['class_name'])
             logger.info(f"Layer {i}: {layer['class_name']}, type: {layerType}")
@@ -79,11 +70,15 @@ class ModelDeployer():
                 inputNode = layer['inbound_nodes'][0]['args'][0]
                 inputUnits = inputNode['shape'][1]
                 units = layer['layer_config']['units']
+                useBias = layer['layer_config']['use_bias']
                 activationFn = getActivationType(
                     layer['layer_config']['activation'])
-                configData = encode(["uint8", "uint256", "uint256"], [
-                                    activationFn.value, units, inputUnits])
-                totalWeights += inputUnits * units + units
+                configData = encode(["uint8", "uint256", "uint256", "bool"], [
+                                    activationFn.value, units, inputUnits, useBias])
+                if useBias:
+                    totalWeights += inputUnits * units + units
+                else:
+                    totalWeights += inputUnits * units + units
             elif layerType == LayerType.Flatten:
                 configData = encode([], [])
             elif layerType == LayerType.Rescaling:
@@ -91,14 +86,13 @@ class ModelDeployer():
                 n2 = fromFloat(layer['layer_config']['offset'])
                 configData = encode(["int64", "int64"], [n1, n2])
             elif layerType == LayerType.Softmax:
-                configData = encode([], [])
+                axis = layer['layer_config']['axis']
+                configData = encode(["int"], [axis])
+            elif layerType == LayerType.Concatenate:
+                axis = layer['layer_config']['axis']
+                configData = encode(["int"], [axis])
             elif layerType == LayerType.ReLU:
-                max_value = fromFloat(layer['layer_config']['max_value'])
-                negative_slope = fromFloat(
-                    layer['layer_config']['negative_slope'])
-                threshold = fromFloat(layer['layer_config']['threshold'])
-                configData = encode(["int64", "int64", "int64"], [
-                                    max_value, negative_slope, threshold])
+                configData = encode([], [])
             elif layerType == LayerType.Sigmoid:
                 configData = encode([], [])
             elif layerType == LayerType.Linear:
@@ -147,16 +141,28 @@ class ModelDeployer():
                 padding = layer['layer_config']['padding']
                 activationFn = getActivationType(
                     layer['layer_config']['activation'])
+                useBias = layer['layer_config']['use_bias']
 
-                configData = encode(["uint8", "uint", "uint", "uint[2]", "uint[2]", "uint8"], [
+                configData = encode(["uint8", "uint", "uint", "uint[2]", "uint[2]", "uint8", "bool"], [
                     activationFn.value,
                     inputFilters,
                     outputFilters,
                     [f_w, f_h],
                     [s_w, s_h],
                     getPaddingType(padding).value,
+                    useBias,
                 ])
-                totalWeights += f_w * f_h * inputFilters * outputFilters + outputFilters
+                if useBias:
+                    totalWeights += f_w * f_h * inputFilters * outputFilters + outputFilters
+                else:
+                    totalWeights += f_w * f_h * inputFilters * outputFilters
+            elif layerType == LayerType.BatchNormalization:
+                inputDim = layer['layer_config']['input_dim']
+                momentum = fromFloat(layer['layer_config']['momentum'])
+                epsilon = fromFloat(layer['layer_config']['epsilon'])
+                configData = encode(["uint256", "int64", "int64"], [
+                                    inputDim, momentum, epsilon])
+                totalWeights += inputDim * 4
             elif layerType == LayerType.Embedding:
                 inputDim = layer['layer_config']['input_dim']
                 outputDim = layer['layer_config']['output_dim']
@@ -183,52 +189,96 @@ class ModelDeployer():
                 configData = encode(["uint8", "uint8", "uint256", "uint256"], [
                                     activationFn.value, recActivationFn.value, units, inputUnits])
                 totalWeights += inputUnits * units * 4 + units * units * 4 + units * 4
-
+            elif layerType == LayerType.Dropout:
+                configData = encode([], [])
+            elif layerType == LayerType.ZeroPadding2D:
+                dataFormat = getZeroPadding2DType(
+                    layer['layer_config']['data_format'])
+                padding = layer['layer_config']['padding']
+                configData = encode(["uint[4]", "uint8"], [
+                                    padding, dataFormat.value])
+            elif layerType == LayerType.GlobalAveragePooling2D:
+                configData = encode([], [])
+            elif layerType == LayerType.AveragePooling2D:
+                pool_size = layer['layer_config']['pool_size']
+                strides = layer['layer_config']['strides']
+                paddingType = getPaddingType(padding)
+                configData = encode(["uint[2]", "uint[2]", "uint8"], [
+                                    pool_size, strides, paddingType.value])
             layersData.append(LayerData(
                 layerType,
                 layer['class_name'],
                 configData,
                 inputIndices,
             ))
-
         return layersData, totalWeights
 
-    def uploadModelWeights(self, model: type[Contract], weights: List[float], start_idx: int = 0):
+    def _uploadChunk(self, model: type[Contract], weights: List[float], start_idx: int, end_idx: int):
+        start = time.time()
+        weightsToUpload = list(
+            map(fromFloat, weights[start_idx: end_idx]))
+        appendWeightTxHash = model.functions.appendWeights(weightsToUpload, start_idx + 1).transact({
+            "from": self.address,
+            "gas": GAS_LIMIT,
+            "maxFeePerGas": MAX_FEE_PER_GAS,
+            "maxPriorityFeePerGas": MAX_PRIORITY_FEE_PER_GAS
+        })
+        receipt = self.w3.eth.wait_for_transaction_receipt(
+            appendWeightTxHash)
+        if receipt['status'] != 1:
+            raise Exception('tx failed', receipt)
+        total_time = time.time() - start
+        total_cost = (receipt.gasUsed *
+                      receipt.effectiveGasPrice) / ETHER_PER_WEI
+        logger.success(
+            f'tx: {appendWeightTxHash.hex()}, gas used: {receipt.gasUsed}, transaction cost: {total_cost} EAI, total time: {total_time} seconds.')
+        return {"tx": appendWeightTxHash.hex(), "gas_used": receipt.gasUsed, "total_cost": total_cost, "total_time": total_time}
+
+    def _uploadWeights(self, contract, weights):
+        logger.info(
+            f"Uploading model weights with chunk length: {self.chunk_len} ...")
+        data = contract.functions.model().call()
+        required_weights = data[1]
+        appended_weights = data[2]
+        assert len(
+            weights) == required_weights, f"Expected {required_weights} weights, got {len(weights)}"
+        retry = True
+        total_cost = 0.0
+        total_time = 0.0
         logger.info(
             f'Weights size: {len(weights)}, total length: {len(weights) * 32} bytes')
-        txIdx = 0
-        uploading_chunk_len = min(self.chunk_len, int(len(weights)/2))
-        logger.info(
-            f'Uploading weights with chunk length: {uploading_chunk_len}...')
-        for l in range(0, start_idx, uploading_chunk_len):
-            logger.success(
-                f'Appending weights #{txIdx} has already been done...')
-            txIdx += 1
-        logger.info(f"Uploading weights from index {start_idx} ...")
-        for l in range(start_idx, len(weights), uploading_chunk_len):
-            weightsToUpload = list(
-                map(fromFloat, weights[l: l + uploading_chunk_len]))
-            logger.info(f'Appending weights #{txIdx}...')
-            appendWeightTxHash = model.functions.appendWeights(weightsToUpload, l + 1).transact({
-                "from": self.address,
-                "gas": GAS_LIMIT
-            })
-            receipt = self.w3.eth.wait_for_transaction_receipt(
-                appendWeightTxHash)
-            if receipt['status'] != 1:
-                raise Exception('tx failed', receipt)
-            logger.success(
-                f'tx: {appendWeightTxHash.hex()}, gas used: {receipt.gasUsed}.')
-            txIdx += 1
-        logger.success("Weights uploaded successfully.")
+        while self.chunk_len > 0 and retry:
+            try:
+                logger.info(
+                    f"Uploading weights from index {appended_weights} ...")
+                for l in tqdm.tqdm(range(appended_weights, len(weights), self.chunk_len), desc="Uploading weights", bar_format="{l_bar}%s{bar}%s{r_bar}" % (Fore.WHITE, Fore.RESET)):
+                    result = self._uploadChunk(
+                        contract, weights, l, l + self.chunk_len)
+                    self.deployed_model_contract["weights"] = result
+                    total_cost += result["total_cost"]
+                    total_time += result["total_time"]
+                retry = False
+            except Exception as e:
+                logger.error(f"Error uploading weights: {e}")
+                time.sleep(5)
+                data = contract.functions.model().call()
+                appended_weights = data[2]
+                self.chunk_len //= 2
+                logger.warning(
+                    f"Retrying with chunk length: {self.chunk_len} ...")
+        return {"total_cost": total_cost, "total_time": total_time}
 
-    def deploy_layer(self, layer_data: LayerData) -> LayerConfig:
+    def _deploy_layer(self, layer_data: LayerData) -> LayerConfig:
+        start = time.time()
         artifact_name = layer_data.layerName
-
         if not artifact_name.endswith("Layer"):
             artifact_name += "Layer"
-        submodule = importlib.import_module(
-            f"eai.artifacts.layers.{artifact_name}")
+        try:
+            submodule = importlib.import_module(
+                f"eai.artifacts.layers.{artifact_name}")
+        except Exception as e:
+            raise Exception(
+                f"Layer {layer_data.layerName} is not supported: {e}")
         artifact = getattr(submodule, "CONTRACT_ARTIFACT")
         tx_hash = self.w3.eth.contract(abi=artifact['abi'], bytecode=artifact['bytecode']).constructor(layer_data.configData).transact({
             "from": self.address,
@@ -236,99 +286,139 @@ class ModelDeployer():
         receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
         if receipt['status'] != 1:
             raise Exception('tx failed', receipt)
+        total_time = time.time() - start
         contract_address = receipt['contractAddress']
         tx = tx_hash.hex()
+        total_cost = (receipt.gasUsed *
+                      receipt.effectiveGasPrice) / ETHER_PER_WEI
         logger.success(
-            f'Layer {layer_data.layerName} has been deployed to address {contract_address}, tx={tx}.')
-        return {"layerTypeIndex": layer_data.layerType.value, "address": contract_address, "inputIndices": layer_data.inputIndices, "tx": tx}
+            f'Layer {layer_data.layerName} has been deployed to address {contract_address}, tx={tx}, gas used: {receipt.gasUsed}, transaction cost: {total_cost} EAI, total time: {total_time} seconds.')
+        return {"layerTypeIndex": layer_data.layerType.value, "address": contract_address, "inputIndices": layer_data.inputIndices, "tx": tx, "total_cost": total_cost, "gas_used": receipt.gasUsed, "total_time": total_time}
 
-    def deploy_model(self, model_data):
-        assert self.private_key is not None, "Private key is required to deploy contract, please run command 'eai set-private-key' to set private key"
-        logger.info("Deploying model to EternalAI chain ...")
-        layers = model_data["model_graph"]["layers"]
-        weights = model_data["weights"]
-        hashed_model = model_data["hashed_model"]
-        hash_value = hashed_model + self.network_mode
-        deployed_model_contract = self.cache_data.get(hashed_model, None)
-        if deployed_model_contract is not None:
-            logger.warning(
-                "Model has already been deployed at address: " +
-                deployed_model_contract["address"]
-            )
-        else:
-            logger.info("Deploying FunctionalModel contract...")
-            contract_address = self.deploy_from_artifact()
-            deployed_model_contract = {}
-            deployed_model_contract["address"] = contract_address
-            self.cache_data[hash_value] = deployed_model_contract
-            self._update_cache()
-        contract = self.w3.eth.contract(
-            address=deployed_model_contract["address"], abi=CONTRACT_ARTIFACT['abi'])
-        layersData, totalWeights = self.get_model_config(layers)
+    def _get_contract(self, address):
+        submodule = importlib.import_module(
+            f"eai.artifacts.models.FunctionalModel")
+        contract_artifact = getattr(submodule, "CONTRACT_ARTIFACT")
+
+        return self.w3.eth.contract(address=address, abi=contract_artifact['abi'])
+
+    def _deploy_model_contract(self):
+        logger.info("Deploying FunctionalModel contract...")
+        submodule = importlib.import_module(
+            f"eai.artifacts.models.FunctionalModel")
+        contract_artifact = getattr(submodule, "CONTRACT_ARTIFACT")
+
+        deployed_contract = self._deploy_from_artifact(contract_artifact)
+        self.deployed_model_contract = {
+            "address": deployed_contract["address"],
+            "layer_configs": [],
+            "model_construct_data": {
+                "is_constructed": False,
+            },
+            "tx": deployed_contract["tx"],
+            "gas_used": deployed_contract["gas_used"],
+            "total_cost": deployed_contract["total_cost"],
+            "total_time": deployed_contract["total_time"]
+        }
+        self.cache_data[self.hash_value] = self.deployed_model_contract
+        self._update_cache()
+        return self.w3.eth.contract(address=deployed_contract["address"], abi=contract_artifact['abi'])
+
+    def _deploy_layers(self, layers_data):
         logger.info("Deploying layer contracts...")
-        layerConfigs = []
-        deployed_layer_configs = deployed_model_contract.get(
-            "layer_configs", [])
-        for idx, deployed_layer_config in enumerate(deployed_layer_configs):
-            layerConfigs.append(
-                LayerConfig(
-                    deployed_layer_config["layerTypeIndex"],
-                    deployed_layer_config["address"],
-                    deployed_layer_config["inputIndices"]
-                )
-            )
-            logger.success(
-                f'Layer {layersData[idx].layerName} has already been deployed to address {deployed_layer_config["address"]}, tx={deployed_layer_config["tx"]}.')
-        for idx in range(len(layerConfigs), len(layersData)):
-            config = self.deploy_layer(layersData[idx])
-            layerConfigs.append(
-                LayerConfig(
-                    config["layerTypeIndex"],
-                    config["address"],
-                    config["inputIndices"]
-                )
-            )
-            deployed_layer_configs.append(config)
-            deployed_model_contract["layer_configs"] = deployed_layer_configs
-            self.cache_data[hash_value] = deployed_model_contract
+        layer_configs = []
+        total_cost = 0.0
+        total_time = 0.0
+        for idx, deployed_layer_config in enumerate(self.deployed_model_contract["layer_configs"]):
+            layer_configs.append(LayerConfig(
+                deployed_layer_config["layerTypeIndex"],
+                deployed_layer_config["address"],
+                deployed_layer_config["inputIndices"]
+            ))
+            total_cost += deployed_layer_config["total_cost"]
+            total_time += deployed_layer_config["total_time"]
+            logger.warning(f'Layer {layers_data[idx].layerName} has already been deployed to address {deployed_layer_config["address"]}, tx={deployed_layer_config["tx"]}, gas used: {deployed_layer_config["gas_used"]}, transaction cost: {deployed_layer_config["total_cost"]} EAI, total time: {deployed_layer_config["total_time"]} seconds.')
+
+        for idx in range(len(layer_configs), len(layers_data)):
+            config = self._deploy_layer(layers_data[idx])
+            layer_configs.append(LayerConfig(
+                config["layerTypeIndex"],
+                config["address"],
+                config["inputIndices"]
+            ))
+            self.deployed_model_contract["layer_configs"].append(config)
+            total_cost += config["total_cost"]
+            total_time += config["total_time"]
+            self.cache_data[self.hash_value] = self.deployed_model_contract
             self._update_cache()
-        layerConfigParams = list(
-            map(lambda x: x.toContractParams(), layerConfigs))
-        appended_weights = 0
-        if not deployed_model_contract.get("is_constructed", False):
+        return {"layer_configs": layer_configs, "total_cost": total_cost, "total_time": total_time}
+
+    def _construct_model_if_needed(self, contract, layerConfigs):
+        if not self.deployed_model_contract["model_construct_data"]["is_constructed"]:
             logger.info("Constructing model...")
-            constructModelTxHash = contract.functions.constructModel(layerConfigParams).transact({
+            start = time.time()
+            layer_config_params = [lc.toContractParams()
+                                   for lc in layerConfigs]
+            construct_model_tx_hash = contract.functions.constructModel(layer_config_params).transact({
                 "from": self.address,
                 "gas": GAS_LIMIT
             })
             receipt = self.w3.eth.wait_for_transaction_receipt(
-                constructModelTxHash)
+                construct_model_tx_hash)
             if receipt['status'] != 1:
-                raise Exception('tx failed', receipt)
-            deployed_model_contract["is_constructed"] = True
-            self.cache_data[hash_value] = deployed_model_contract
+                raise Exception(
+                    'Model construction transaction failed', receipt)
+            total_time = time.time() - start
+            tx = construct_model_tx_hash.hex()
+            total_cost = (receipt.gasUsed *
+                          receipt.effectiveGasPrice) / ETHER_PER_WEI
+            self.deployed_model_contract["model_construct_data"] = {
+                "is_constructed": True,
+                "tx": construct_model_tx_hash.hex(),
+                "gas_used": receipt.gasUsed,
+                "total_cost": total_cost,
+                "total_time": total_time
+            }
+            self.cache_data[self.hash_value] = self.deployed_model_contract
             self._update_cache()
             logger.success(
-                f"Model constructed successfully, tx:  {constructModelTxHash.hex()}, gas used: {receipt.gasUsed}.")
+                f"Model constructed successfully, tx: {tx}, gas used: {receipt.gasUsed}, transaction cost: {total_cost} EAI, total time: {total_time} seconds.")
         else:
-            data = contract.functions.model().call()
-            required_weights = data[1]
-            assert len(
-                weights) == required_weights, f"Expected {required_weights} weights, got {len(weights)}"
-            appended_weights = data[2]
-        retry = 2
-        logger.info(
-            f"Uploading weights with chunk length: {self.chunk_len}...")
-        while retry > 0:
-            try:
-                self.uploadModelWeights(contract, weights, appended_weights)
-                break
-            except Exception as e:
-                retry -= 1
-                self.chunk_len -= 1000
-                logger.warning(f"Retrying with chunk length: {self.chunk_len}")
+            logger.warning(
+                f"Model has already been constructed with tx: {self.deployed_model_contract['model_construct_data']['tx']}, gas used: {self.deployed_model_contract['model_construct_data']['gas_used']}, transaction cost: {self.deployed_model_contract['model_construct_data']['total_cost']} EAI, total time: {self.deployed_model_contract['model_construct_data']['total_time']} seconds.")
 
-        logger.success("Model deployed at address: " + contract.address)
-        self.cache_data.pop(hash_value)
+    def deploy_model(self, model_data):
+        assert self.private_key is not None, "Private key is required to deploy contract, please run command 'eai set-private-key' to set private key"
+        total_time = 0.0
+        logger.info("Deploying model to EternalAI chain ...")
+        layers = model_data["model_graph"]["layers"]
+        weights = model_data["weights"]
+        hashed_model = model_data["hashed_model"]
+        self.hash_value = hashed_model + self.network_mode
+        total_cost = 0.0
+        self.deployed_model_contract = self.cache_data.get(self.hash_value, {})
+        if len(self.deployed_model_contract) > 0:
+            logger.warning(
+                f"Model has already been deployed at address: {self.deployed_model_contract['address']}, tx: {self.deployed_model_contract['tx']}, gas used: {self.deployed_model_contract['gas_used']}, transaction cost: {self.deployed_model_contract['total_cost']} EAI.")
+            contract = self._get_contract(
+                self.deployed_model_contract["address"])
+        else:
+            contract = self._deploy_model_contract()
+        total_cost += self.deployed_model_contract["total_cost"]
+        total_time += self.deployed_model_contract["total_time"]
+        layers_data, total_weights = self._get_model_config(layers)
+        ret = self._deploy_layers(layers_data)
+        total_cost += ret["total_cost"]
+        total_time += ret["total_time"]
+        self._construct_model_if_needed(contract, ret["layer_configs"])
+        if len(weights) > 0:
+            ret = self._uploadWeights(contract, weights)
+            total_cost += ret["total_cost"]
+            total_time += ret["total_time"]
+        logger.success(
+            f"Model deployed at address: {contract.address}, total transaction cost: {total_cost} EAI, total time: {total_time} seconds.")
+        self.cache_data.pop(self.hash_value)
+        del self.hash_value
+        del self.deployed_model_contract
         self._update_cache()
         return contract

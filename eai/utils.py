@@ -1,11 +1,10 @@
 import os
 import sys
-import pickle
 import subprocess
 from web3 import Account
 from loguru import logger
 from typing import List
-from eai.layer_config import LayerType, Activation, Padding
+from eai.layer_config import LayerType, Activation, Padding, ZeroPaddingFormat
 
 TENSORFLOW_KERAS2 = "2.15.1"
 TENSORFLOW_KERAS3 = "2.16.1"
@@ -50,7 +49,6 @@ def getLayerType(name: str) -> int:
     try:
         return LayerType[name]
     except:
-        logger.warning(f'Layer type not found: {name}')
         raise Exception("Layer type not found")
 
 
@@ -58,7 +56,6 @@ def getActivationType(name: str) -> int:
     try:
         return Activation[name]
     except:
-        logger.warning(f'Activation function type not found: {name}')
         raise Exception("Activation function type not found")
 
 
@@ -66,8 +63,14 @@ def getPaddingType(name: str) -> int:
     try:
         return Padding[name]
     except:
-        logger.warning(f'Padding type not found: {name}')
         raise Exception("Padding type not found")
+
+
+def getZeroPadding2DType(name: str) -> int:
+    try:
+        return ZeroPaddingFormat[name]
+    except:
+        raise Exception("ZeroPadding2D type not found")
 
 
 def getConvSize(dim: List[int], size: List[int], stride: List[int], padding: str):
@@ -105,25 +108,17 @@ ENV_PATH = os.path.join(get_script_path(), ".env")
 
 
 def get_keras_version():
-    cache_data = {}
-    cache_file = os.path.join(get_script_path(), ".cache")
-    if os.path.exists(cache_file):
-        with open(cache_file, "rb") as f:
-            cache_data = pickle.load(f)
-    return cache_data.get("keras_version", "3.4.1")
-
-
-def update_keras_version():
-    import keras
-    Logger.success(f"Keras version is now {keras.__version__}")
-    cache_data = {}
-    cache_file = os.path.join(get_script_path(), ".cache")
-    if os.path.exists(cache_file):
-        with open(cache_file, "rb") as f:
-            cache_data = pickle.load(f)
-    cache_data["keras_version"] = keras.__version__
-    with open(cache_file, "wb") as f:
-        pickle.dump(cache_data, f)
+    import subprocess
+    version = "3.4.1"
+    try:
+        result = subprocess.run(
+            ['pip', 'show', "keras"], capture_output=True, text=True, check=True)
+        for line in result.stdout.splitlines():
+            if line.startswith('Version:'):
+                version = line.split()[1]
+    except subprocess.CalledProcessError:
+        return version
+    return version
 
 
 def handle_keras_version(format_version):
@@ -134,11 +129,15 @@ def handle_keras_version(format_version):
                 f"Your Keras version is now {keras_version} not compatible with Keras2. Downgrading to Keras2 ...")
             subprocess.run(
                 ["pip", "install", "tensorflow=={}".format(TENSORFLOW_KERAS2)])
-            update_keras_version()
     else:
         if keras_version.startswith("2."):
             Logger.warning(
                 f"Your Keras version is now {keras_version} not compatible with Keras3. Upgrading to Keras3 ...")
             subprocess.run(
                 ["pip", "install", "tensorflow=={}".format(TENSORFLOW_KERAS3)])
-            update_keras_version()
+    import keras
+    Logger.success(f"Keras version is now {keras.__version__}")
+
+
+ETHER_PER_WEI = 10**18
+DEFAULT_RUNTIME = "cuda"

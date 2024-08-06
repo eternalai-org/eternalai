@@ -1,10 +1,11 @@
 import os
+import time
 import json
 import requests
 import numpy as np
 from typing import List
 from eth_abi import encode, decode
-from web3 import Web3
+from web3 import Web3, HTTPProvider
 from eai.utils import get_abi_type
 from eai.utils import Logger
 from eai.network_config import NETWORK
@@ -135,21 +136,17 @@ class Eternal:
                 f"Transformed model metadata saved to {output_path}.")
         return metadata
 
-    def predict(self, inputs: List[np.ndarray], output_path: str = None) -> np.ndarray:
-        network = os.environ["NETWORK_MODE"]
+    def predict(self, inputs: List[np.ndarray], output_path: str = None, call_timeout=300) -> np.ndarray:
         address = self.address
         Logger.info(
-            "Making prediction on EternalAI's {} at {} ...".format(network, address))
-        import time
-        start = time.time()
-        node_endpoint = NETWORK[network]["NODE_ENDPOINT"]
-        w3 = Web3(Web3.HTTPProvider(node_endpoint,
-                  request_kwargs={'timeout': 300}))
-        contract_abi = CONTRACT_ARTIFACT['abi']
+            "Making prediction on EternalAI's {} at {} ...".format(os.environ["NETWORK_MODE"], address))
+        w3 = Web3(HTTPProvider(NETWORK[os.environ["NETWORK_MODE"]]
+                  ["NODE_ENDPOINT"], request_kwargs={'timeout': call_timeout}))
         model_contract = w3.eth.contract(
-            address=self.address, abi=contract_abi)
+            address=self.address, abi=CONTRACT_ARTIFACT['abi'])
         input_tensors = list(map(lambda x: TensorData.from_numpy(x), inputs))
         input_params = list(map(lambda x: x.toContractParams(), input_tensors))
+        start = time.time()
         result = model_contract.functions.predict(input_params).call()
         output_tensor = TensorData(result[0], result[1])
         output_numpy = output_tensor.to_numpy()

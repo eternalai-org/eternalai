@@ -4,12 +4,11 @@ import argparse
 import requests
 import numpy as np
 from eai.version import __version__
-from eai.utils import Logger, ENV_PATH
+from eai.utils import Logger, ENV_PATH, ETHER_PER_WEI, DEFAULT_RUNTIME
 from eai.utils import create_web3_account, publisher
 from eai.network_config import NETWORK
 from eai.func import transform, check, get_model, transfer_model
 
-ETHER_PER_WEI = 10**18
 DEFAULT_NETWORK = "mainnet"
 DEFAULT_DUMP_FILE_NAME = "secret"
 
@@ -22,6 +21,8 @@ def parse_args():
     subparsers = parser.add_subparsers(
         dest='command', help="Commands to execute for EternalAI")
     subparsers.add_parser('version', help="Show the version of the toolkit.")
+    subparsers.add_parser(
+        'upgrade', help="Upgrade the toolkit to the latest version.")
     # Wallet command
     parser_wallet = subparsers.add_parser(
         'wallet', help="Commands to execute for wallet operations")
@@ -296,6 +297,15 @@ def parse_args():
     return parser.parse_known_args()
 
 
+def version_command():
+    Logger.success(f"✨ EternalAI Toolkit - Version: {__version__} ✨")
+
+
+def upgrade_command():
+    os.system(
+        "pip install --upgrade git+https://github.com/eternalai-org/eternalai.git")
+
+
 def wallet_create(**kwargs):
     if "PRIVATE_KEY" in os.environ:
         Logger.warning(
@@ -561,7 +571,6 @@ def eternal_transform(**kwargs):
                 temp_file_name = temp_file.name + ".keras"
             os.system(f"wget {kwargs['url']} -O {temp_file_name}")
             kwargs['file'] = temp_file_name
-
     eternal = transform(kwargs['file'], kwargs['name'],
                         kwargs['format'], network_mode=kwargs['network'])
     eternal.to_json(kwargs['output-path'])
@@ -674,7 +683,9 @@ def main():
         sys.exit(2)
 
     if known_args.command == "version":
-        Logger.success(f"✨ EternalAI Toolkit - Version: {__version__} ✨")
+        version_command()
+    if known_args.command == "upgrade":
+        upgrade_command()
     elif known_args.command == "wallet":
         handle_wallet(known_args)
     elif known_args.command == "eternal":

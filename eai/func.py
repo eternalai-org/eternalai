@@ -72,6 +72,36 @@ def transform(model, model_name: str = "Unnamed Model", format="keras3", network
     return eai_model
 
 
+def check_keras_graph(model_data, layers):
+    layer_names = []
+    labels = []
+    for idx, layer in enumerate(model_data["config"]["layers"]):
+        module = layer["module"]
+        if module == "keras.layers":
+            class_name = layer["class_name"]
+            layer_config = layer["config"]
+            layer_names.append(class_name)
+            if class_name == "BatchNormalization":
+                input_shape = layers[idx].input.shape
+                axis = layer_config["axis"][0]
+                layer_config["input_dim"] = input_shape[axis]
+            try:
+                module = importlib.import_module("eai.layers")
+                layer_class = getattr(module, class_name)(layer_config)
+                labels.append(1)
+            except Exception as e:
+                labels.append(0)
+        elif module == "keras.src.engine.functional" or module == "keras.src.models.functional":
+            _layer_names, _labels = check_keras_graph(
+                layer, layers[idx].layers)
+            layer_names.extend(_layer_names)
+            labels.extend(_labels)
+        else:
+            raise Exception(f"Module {module} not supported")
+
+    return layer_names, labels
+
+
 def check_keras_model(model, output_path: str = None):
     try:
         model_data = json.loads(model.to_json())
@@ -80,24 +110,20 @@ def check_keras_model(model, output_path: str = None):
         return
 
     Logger.info("Checking model layers ...")
+
+    layer_names, labels = check_keras_graph(
+        model_data, model.layers)
     supported_layers = 0
     unsupported_layers = 0
     error_layers = []
-
-    for idx, layer in enumerate(model_data.get("config", {}).get("layers", [])):
-        class_name = layer.get("class_name", "Unknown")
-        layer_config = layer.get("config", {})
-        try:
-            module = importlib.import_module("eai.layers")
-            layer_class = getattr(module, class_name)(layer_config)
-            Logger.success(
-                f"{idx}: Layer {class_name}")
+    for idx, layer_name in enumerate(layer_names):
+        if labels[idx] == 1:
+            Logger.success(f"{idx}: Layer {layer_name} is supported.")
             supported_layers += 1
-        except Exception as e:
-            if class_name not in error_layers:
-                Logger.error(
-                    f"{idx}: Layer {class_name}")
-                error_layers.append(class_name)
+        else:
+            if layer_name not in error_layers:
+                Logger.error(f"{idx}: Layer {layer_name} is not supported.")
+                error_layers.append(layer_name)
             unsupported_layers += 1
     response = {
         "status": 1
@@ -156,7 +182,6 @@ def get_model(model: str):
 def transfer_model(model_id: str, to_address: str, network_mode: str = None):
     network = network_mode if network_mode is not None else os.environ["NETWORK_MODE"]
     private_key = os.environ["PRIVATE_KEY"]
-    print(network)
     node_endpoint = NETWORK[network]["NODE_ENDPOINT"]
     w3 = Web3(Web3.HTTPProvider(node_endpoint,
                                 request_kwargs={'timeout': 300}))

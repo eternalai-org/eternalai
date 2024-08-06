@@ -1,3 +1,6 @@
+MAX_DIM = 3
+
+
 class InputLayer:
     def __init__(self, cfg):
         if "batch_shape" in cfg:
@@ -14,9 +17,7 @@ class InputLayer:
 
 class Rescaling:
     def __init__(self, cfg):
-        assert "scale" in cfg, "scale is required for Rescaling"
         self.scale = cfg["scale"]
-        assert "offset" in cfg, "offset is required for Rescaling"
         self.offset = cfg["offset"]
 
     def get_layer_config(self):
@@ -25,20 +26,17 @@ class Rescaling:
 
 class Dense:
     def __init__(self, cfg):
-        assert "units" in cfg, "units is required for Dense"
         self.units = cfg["units"]
-        assert "activation" in cfg, "activation is required for Dense"
         self.activation = cfg["activation"]
+        self.use_bias = cfg["use_bias"]
 
     def get_layer_config(self):
-        return {"units": self.units, "activation": self.activation}
+        return {"units": self.units, "activation": self.activation, "use_bias": self.use_bias}
 
 
 class Rescale:
     def __init__(self, cfg):
-        assert "scale" in cfg, "scale is required for Rescale"
         self.scale = cfg["scale"]
-        assert "offset" in cfg, "offset is required for Rescale"
         self.offset = cfg["offset"]
 
     def get_layer_config(self):
@@ -47,18 +45,15 @@ class Rescale:
 
 class Conv2D:
     def __init__(self, cfg):
-        assert "filters" in cfg, "filters is required for Conv2D"
         self.filters = cfg["filters"]
-        assert "kernel_size" in cfg, "kernel_size is required for Conv2D"
         self.kernel_size = cfg["kernel_size"]
-        assert "strides" in cfg, "strides is required for Conv2D"
         self.strides = cfg["strides"]
-        assert "padding" in cfg, "padding is required for Conv2D"
         self.padding = cfg["padding"]
         self.activation = cfg.get("activation", None)
+        self.use_bias = cfg["use_bias"]
 
     def get_layer_config(self):
-        return {"filters": self.filters, "kernel_size": self.kernel_size, "strides": self.strides, "padding": self.padding, "activation": self.activation}
+        return {"filters": self.filters, "kernel_size": self.kernel_size, "strides": self.strides, "padding": self.padding, "activation": self.activation, "use_bias": self.use_bias}
 
 
 class MaxPooling2D:
@@ -148,17 +143,15 @@ class Sigmoid:
 
 class ReLU:
     def __init__(self, cfg):
-        self.negative_slope = cfg.get("negative_slope", 0)
-        self.max_value = cfg.get("max_value", 0)
-        self.threshold = cfg.get("threshold", 0)
+        pass
 
     def get_layer_config(self):
-        return {"negative_slope": self.negative_slope, "max_value": self.max_value, "threshold": self.threshold}
+        return {}
 
 
 class Softmax:
     def __init__(self, cfg):
-        self.axis = cfg.get("axis", -1)
+        self.axis = -1
 
     def get_layer_config(self):
         return {"axis": self.axis}
@@ -188,3 +181,62 @@ class Activation:
 
     def get_layer_config(self):
         return self.activation.get_layer_config()
+
+
+class BatchNormalization:
+    def __init__(self, cfg):
+        self.input_dim = cfg["input_dim"]
+        self.momentum = cfg["momentum"]
+        self.epsilon = cfg["epsilon"]
+
+    def get_layer_config(self):
+        return {"input_dim": self.input_dim, "momentum": self.momentum, "epsilon": self.epsilon}
+
+
+class Dropout:
+    def __init__(self, cfg):
+        pass
+
+    def get_layer_config(self):
+        return {}
+
+
+class ZeroPadding2D:
+    def __init__(self, cfg):
+        assert "padding" in cfg, "padding is required for ZeroPadding2D"
+        self.padding = self._parse_padding(cfg["padding"])
+        self.data_format = cfg["data_format"]
+        assert "data_format" in cfg, "data_format is required for ZeroPadding2D"
+
+    def _parse_padding(self, padding):
+        if isinstance(padding, int):
+            padding = [padding, padding, padding, padding]
+        elif isinstance(padding, list):
+            if isinstance(padding[0], int):
+                padding = [padding[0], padding[0], padding[1], padding[1]]
+            else:
+                padding = [padding[0][0], padding[0]
+                           [1], padding[1][0], padding[1][1]]
+        else:
+            raise Exception("Invalid padding format")
+        return padding
+
+    def get_layer_config(self):
+        return {"padding": self.padding, "data_format": self.data_format}
+
+
+class GlobalAveragePooling2D:
+    def __init__(self, cfg):
+        pass
+
+    def get_layer_config(self):
+        return {}
+
+
+class Concatenate:
+    def __init__(self, cfg):
+        assert "axis" in cfg, "axis is required for Concatenate"
+        self.axis = min(cfg["axis"], MAX_DIM - 1)
+
+    def get_layer_config(self):
+        return {"axis": self.axis}
