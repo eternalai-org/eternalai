@@ -4,7 +4,7 @@ import argparse
 import requests
 import numpy as np
 from eai.version import __version__
-from eai.utils import Logger, ENV_PATH, ETHER_PER_WEI, DEFAULT_RUNTIME
+from eai.utils import Logger, ENV_PATH, ETHER_PER_WEI
 from eai.utils import create_web3_account, publisher
 from eai.network_config import NETWORK
 from eai.func import transform, check, get_model, transfer_model
@@ -97,7 +97,7 @@ def parse_args():
         "--network",
         "-ne",
         action='store',
-        default=DEFAULT_NETWORK,
+        default=None,
         type=str,
         help=f"Network mode. Specify the network configuration. Default is {DEFAULT_NETWORK}."
     )
@@ -130,7 +130,7 @@ def parse_args():
         "--network",
         "-ne",
         action='store',
-        default=DEFAULT_NETWORK,
+        default=None,
         type=str,
         help=f"Network mode. Specify the network configuration. Default is {DEFAULT_NETWORK}."
     )
