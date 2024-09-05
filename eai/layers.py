@@ -1,6 +1,3 @@
-MAX_DIM = 3
-
-
 class InputLayer:
     def __init__(self, cfg):
         if "batch_shape" in cfg:
@@ -31,7 +28,10 @@ class Dense:
         self.use_bias = cfg["use_bias"]
 
     def get_layer_config(self):
-        return {"units": self.units, "activation": self.activation, "use_bias": self.use_bias}
+        return {
+            "units": self.units,
+            "activation": self.activation,
+            "use_bias": self.use_bias}
 
 
 class Rescale:
@@ -53,7 +53,13 @@ class Conv2D:
         self.use_bias = cfg["use_bias"]
 
     def get_layer_config(self):
-        return {"filters": self.filters, "kernel_size": self.kernel_size, "strides": self.strides, "padding": self.padding, "activation": self.activation, "use_bias": self.use_bias}
+        return {
+            "filters": self.filters,
+            "kernel_size": self.kernel_size,
+            "strides": self.strides,
+            "padding": self.padding,
+            "activation": self.activation,
+            "use_bias": self.use_bias}
 
 
 class MaxPooling2D:
@@ -66,7 +72,10 @@ class MaxPooling2D:
         self.padding = cfg["padding"]
 
     def get_layer_config(self):
-        return {"pool_size": self.pool_size, "strides": self.strides, "padding": self.padding}
+        return {
+            "pool_size": self.pool_size,
+            "strides": self.strides,
+            "padding": self.padding}
 
 
 class AveragePooling2D:
@@ -79,7 +88,10 @@ class AveragePooling2D:
         self.padding = cfg["padding"]
 
     def get_layer_config(self):
-        return {"pool_size": self.pool_size, "strides": self.strides, "padding": self.padding}
+        return {
+            "pool_size": self.pool_size,
+            "strides": self.strides,
+            "padding": self.padding}
 
 
 class SimpleRNN:
@@ -114,7 +126,8 @@ class LSTM:
         self.recurrent_activation = cfg["recurrent_activation"]
 
     def get_layer_config(self):
-        return {"units": self.units, "activation": self.activation, "recurrent_activation": self.recurrent_activation}
+        return {"units": self.units, "activation": self.activation,
+                "recurrent_activation": self.recurrent_activation}
 
 
 class Add:
@@ -165,24 +178,6 @@ class Flatten:
         return {}
 
 
-class Activation:
-    def __init__(self, cfg):
-        activation_name = cfg.get("activation", None)
-        if activation_name == "relu":
-            self.activation = ReLU(cfg)
-        elif activation_name == "sigmoid":
-            self.activation = Sigmoid(cfg)
-        elif activation_name == "softmax":
-            self.activation = Softmax(cfg)
-        elif activation_name == "linear":
-            self.activation = Linear(cfg)
-        else:
-            raise Exception(f"Activation {activation_name} is not supported")
-
-    def get_layer_config(self):
-        return self.activation.get_layer_config()
-
-
 class BatchNormalization:
     def __init__(self, cfg):
         self.input_dim = cfg["input_dim"]
@@ -190,8 +185,11 @@ class BatchNormalization:
         self.epsilon = cfg["epsilon"]
 
     def get_layer_config(self):
-        return {"input_dim": self.input_dim, "momentum": self.momentum, "epsilon": self.epsilon}
-
+        return {
+            "input_dim": self.input_dim,
+            "momentum": self.momentum,
+            "epsilon": self.epsilon
+        }
 
 class Dropout:
     def __init__(self, cfg):
@@ -236,7 +234,7 @@ class GlobalAveragePooling2D:
 class Concatenate:
     def __init__(self, cfg):
         assert "axis" in cfg, "axis is required for Concatenate"
-        self.axis = min(cfg["axis"], MAX_DIM - 1)
+        self.axis = min(cfg["axis"], 2)
 
     def get_layer_config(self):
         return {"axis": self.axis}

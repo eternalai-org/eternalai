@@ -52,7 +52,12 @@ ZeroPaddingFormat = Enum('ZeroPaddingFormat', [
 
 
 class LayerData:
-    def __init__(self, layerType: LayerType, layerName: str, configData: str, inputIndices: List[int]):
+    def __init__(
+            self,
+            layerType: LayerType,
+            layerName: str,
+            configData: str,
+            inputIndices: List[int]):
         self.layerType = layerType
         self.layerName = layerName
         self.configData = configData
@@ -60,10 +65,34 @@ class LayerData:
 
 
 class LayerConfig:
-    def __init__(self, layerTypeIndex: int, layerAddress: str, inputIndices: List[int]):
+    def __init__(
+            self,
+            layerTypeIndex: int,
+            layerAddress: str,
+            inputIndices: List[int]):
         self.layerTypeIndex = layerTypeIndex
         self.layerAddress = layerAddress
         self.inputIndices = inputIndices
 
     def toContractParams(self):
         return (self.layerTypeIndex, self.layerAddress, self.inputIndices)
+
+
+KERAS_ACTIVATIONS = {
+    "relu": "ReLU",
+    "sigmoid": "Sigmoid",
+    "tanh": "Tanh",
+    "softmax": "Softmax",
+    "softplus": "Softplus",
+    "softsign": "Softsign",
+    "elu": "ELU",
+    "selu": "SELU",
+    "swish": "Swish",
+    "gelu": "GELU",
+    "exponential": "Exponential",
+    "hard_sigmoid": "HardSigmoid",
+    "linear": "Linear",
+    "leaky_relu": "LeakyReLU",
+    "silu": "SiLU",
+    "hard_silu": "HardSiLU",
+}

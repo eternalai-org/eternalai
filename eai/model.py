@@ -4,33 +4,41 @@ import json
 import requests
 import numpy as np
 from typing import List
-from eth_abi import encode, decode
 from web3 import Web3, HTTPProvider
-from eai.utils import get_abi_type
-from eai.utils import Logger
+from eai.utils import merge_float32_to_uint256, parse_uint256_to_float32, Logger
 from eai.network_config import NETWORK
 from eai.artifacts.models.FunctionalModel import CONTRACT_ARTIFACT
 
 
 class TensorData:
-    def __init__(self, data: bytes, dim: List[int]):
+    def __init__(self, data: bytes, shapes: List[int]):
         self.data = data
-        self.dim = dim
+        self.shapes = shapes
 
     def toContractParams(self):
-        return (self.data, self.dim)
+        return (self.data, self.shapes)
 
     @staticmethod
     def from_numpy(arr):
-        arr_32x32 = (arr * (1 << 32)).astype(int)
-        dim_count = len(arr_32x32.shape)
-        return TensorData(encode([get_abi_type(dim_count)], [arr_32x32.tolist()]), arr_32x32.shape)
+        original_shape = arr.shape
+        arr_32 = arr.reshape(-1).tolist()
+        merged_arr = []
+        to_append = 0
+        N = len(arr_32)
+        if N % 4 != 0:
+            to_append = 4 - N % 4
+        for i in range(to_append):
+            arr_32.append(0)
+        for i in range(0, N, 4):
+            merged_arr.append(merge_float32_to_uint256(arr_32[i:i + 4]))
+        return TensorData(merged_arr, original_shape)
 
     def to_numpy(self):
-        arr_32x32 = np.asarray(
-            decode([get_abi_type(len(self.dim))], self.data), dtype=np.float32)
-        arr = arr_32x32 / (1 << 32)
-        return arr
+        arr = []
+        for i in range(len(self.data)):
+            float32_arr = parse_uint256_to_float32(self.data[i])
+            arr.extend(float32_arr)
+        return np.array(arr[:np.prod(self.shapes)]).reshape(self.shapes)
 
 
 class Eternal:
@@ -136,10 +144,14 @@ class Eternal:
                 f"Transformed model metadata saved to {output_path}.")
         return metadata
 
-    def predict(self, inputs: List[np.ndarray], output_path: str = None, call_timeout=300) -> np.ndarray:
+    def predict(self,
+                inputs: List[np.ndarray],
+                output_path: str = None,
+                call_timeout=1000) -> np.ndarray:
         address = self.address
         Logger.info(
-            "Making prediction on EternalAI's {} at {} ...".format(os.environ["NETWORK_MODE"], address))
+            "Making prediction on EternalAI's {} at {} ...".format(
+                os.environ["NETWORK_MODE"], address))
         w3 = Web3(HTTPProvider(NETWORK[os.environ["NETWORK_MODE"]]
                   ["NODE_ENDPOINT"], request_kwargs={'timeout': call_timeout}))
         model_contract = w3.eth.contract(
@@ -150,8 +162,10 @@ class Eternal:
         result = model_contract.functions.predict(input_params).call()
         output_tensor = TensorData(result[0], result[1])
         output_numpy = output_tensor.to_numpy()
-        Logger.success("Prediction made successfully in {} seconds. Output: {}".format(
-            time.time() - start, output_numpy.tolist()))
+        Logger.success(
+            "Prediction made successfully in {} seconds. Output: {}".format(
+                time.time() - start,
+                output_numpy.tolist()))
         if output_path is not None:
             np.save(output_path, output_numpy)
             Logger.success(

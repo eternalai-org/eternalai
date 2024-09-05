@@ -98,10 +98,7 @@ eai eternal transform -m PATH_TO_MODEL -name MODEL_NAME -o OUTPUT_PATH --network
     from eai.model import Eternal
 
     # Create an instance of EAIModel
-    eternal = Eternal()
-
-    # Replace '0xYOUR_ADDRESS' with the actual on-chain address of your model
-    eternal.load("0xYOUR_ADDRESS")
+    eternal = Eternal("0xYOUR_ADDRESS")
     ```
     *Note: Make sure to replace `0xYOUR_ADDRESS` with the real address of your model on-chain.*
 3. Call Your Model On-Chain:

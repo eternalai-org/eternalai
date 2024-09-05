@@ -1,7 +1,9 @@
 import json
 import hashlib
 import importlib
-from eai.utils import Logger
+import numpy as np
+from eai.utils import Logger, merge_float32_to_uint256
+from eai.layer_config import KERAS_ACTIVATIONS
 
 
 class ModelExporter:
@@ -153,18 +155,8 @@ class ModelExporter:
                         axis = axis[0]
                     layer_config["input_dim"] = input_shape[axis]
                 elif class_name == "Activation":
-                    if layer_config["activation"] == "linear":
-                        class_name = "Linear"
-                    elif layer_config["activation"] == "softmax":
-                        class_name = "Softmax"
-                    elif layer_config["activation"] == "relu":
-                        class_name = "ReLU"
-                    elif layer_config["activation"] == "sigmoid":
-                        class_name = "Sigmoid"
-                    elif layer_config["activation"] == "tanh":
-                        class_name = "Tanh"
-                    elif layer_config["activation"] == "leakyrelu":
-                        class_name = "LeakyReLU"
+                    if layer_config["activation"] in KERAS_ACTIVATIONS:
+                        class_name = KERAS_ACTIVATIONS[layer_config["activation"]]
                     else:
                         raise Exception(
                             f"Activation {layer_config['activation']} is not supported")
@@ -179,7 +171,7 @@ class ModelExporter:
                     layer_class = getattr(module, class_name)(layer_config)
                     layer_config = layer_class.get_layer_config()
                     Logger.success(f"Layer {class_name} exported")
-                except:
+                except BaseException:
                     Logger.error(f"Layer {class_name} not supported")
                     raise Exception(f"Layer {class_name} not supported")
                 data["layer_config"] = layer_config
@@ -255,18 +247,22 @@ class ModelExporter:
             list: List of flattened weights.
         """
         Logger.info("Exporting model weights ...")
-        weights = []
-        flattened_weights = []
+        layer_weights = []
         for layer in model.layers:
             w = layer.get_weights()
-            weights.append(w)
-        for idx, layer in enumerate(weights):
-            for weight_group in layer:
-                flatten = weight_group.reshape(-1).tolist()
-                for i in flatten:
-                    flattened_weights.append(float(i))
+            for param in w:
+                param = param.reshape(-1).tolist()
+                N = len(param)
+                to_append = 0
+                if N % 4 != 0:
+                    to_append = 4 - N % 4
+                for i in range(to_append):
+                    param.append(0)
+                for i in range(0, len(param), 4):
+                    mergedNumber = merge_float32_to_uint256(param[i:i + 4])
+                    layer_weights.append(mergedNumber)
         Logger.success("Weights exported.")
-        return flattened_weights
+        return layer_weights
 
     def _export_tf_model(self, model):
         """

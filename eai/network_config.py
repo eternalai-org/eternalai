@@ -1,11 +1,10 @@
 GAS_LIMIT = 99_000_000
-CHUNK_LEN = 8000
-MAX_FEE_PER_GAS = 1000000000
-MAX_PRIORITY_FEE_PER_GAS = 1000000000
+CHUNK_LEN = 4000
+MAX_PRIORITY_FEE_PER_GAS = 0
 COLLECTION_ADDRESS = "0xB0e91e2Aa27330434Bfc33fF5314C796eD3Ad3c6"
 NETWORK = {
     "testnet": {
-        "NODE_ENDPOINT": "https://eternal-ai3.tc.l2aas.com/rpc",
+        "NODE_ENDPOINT": "http://35.198.228.132/rpc",
         "REGISTER_ENDPOINT": "https://api-dojo.dev2.eternalai.org/api/dojo/register-model",
         "LIST_MODEL_ENDPOINT": "https://api-dojo.dev2.eternalai.org/api/dojo/list-training-requests",
         "MODEL_INFO_BY_ADDRESS": "https://api-dojo.dev2.eternalai.org/api/dojo/model-info-by-model-address",
@@ -14,7 +13,7 @@ NETWORK = {
         "FAUCET_ENDPOINT": "https://api-dojo.dev2.eternalai.org/api/service/faucet-testnet"
     },
     "mainnet": {
-        "NODE_ENDPOINT": "https://node.eternalai.org",
+        "NODE_ENDPOINT": "https://cuda-eternalai.testnet.l2aas.com/rpc",
         "REGISTER_ENDPOINT": "https://api-dojo2.eternalai.org/api/dojo/register-model",
         "LIST_MODEL_ENDPOINT": "https://api-dojo2.eternalai.org/api/dojo/list-training-requests",
         "MODEL_INFO_BY_ADDRESS": "https://api-dojo2.eternalai.org/api/dojo/model-info-by-model-address",

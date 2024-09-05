@@ -15,19 +15,18 @@ DEFAULT_DUMP_FILE_NAME = "secret"
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="Tool for managing and deploying machine learning models on-chain."
-    )
+        description="Tool for managing and deploying machine learning models on-chain.")
 
     subparsers = parser.add_subparsers(
-        dest='command', help="Commands to execute for EternalAI")
+        dest='command', help="Commands to execute for EternalAI.")
     subparsers.add_parser('version', help="Show the version of the toolkit.")
     subparsers.add_parser(
         'upgrade', help="Upgrade the toolkit to the latest version.")
     # Wallet command
     parser_wallet = subparsers.add_parser(
-        'wallet', help="Commands to execute for wallet operations")
+        'wallet', help="Commands to execute for wallet operations.")
     wallet_commands = parser_wallet.add_subparsers(
-        dest='subcommand', help="Subcommands to execute for wallet")
+        dest='subcommand', help="Subcommands to execute for wallet.")
 
     wallet_create = wallet_commands.add_parser(
         'create', help='Create a new wallet')
@@ -48,13 +47,13 @@ def parse_args():
         help=f"Network mode. Specify the network configuration. Default is {DEFAULT_NETWORK}."
     )
     wallet_import = wallet_commands.add_parser(
-        'import', help='Import a wallet from private key')
+        'import', help='Import a wallet from private key.')
     wallet_import.add_argument(
         "--private-key",
         "-p",
         action='store',
         type=str,
-        help="Private key for the wallet"
+        help="Private key for the wallet."
     )
     wallet_import.add_argument(
         "--file",
@@ -72,9 +71,9 @@ def parse_args():
         help=f"Network mode. Specify the network configuration. Default is {DEFAULT_NETWORK}."
     )
     wallet_balance = wallet_commands.add_parser(
-        'balance', help='Check the balance of the wallet')
+        'balance', help='Check the balance of the wallet.')
     wallet_transactions = wallet_commands.add_parser(
-        'transactions', help='List all transactions for the wallet')
+        'transactions', help='List all transactions for the wallet.')
     wallet_transactions.add_argument(
         "--output-path",
         "-o",
@@ -135,7 +134,7 @@ def parse_args():
         help=f"Network mode. Specify the network configuration. Default is {DEFAULT_NETWORK}."
     )
     wallet_deposit = wallet_commands.add_parser(
-        'deposit', help='Generate deposit address')
+        'deposit', help='Generate deposit address.')
     wallet_deposit.add_argument(
         "--output-path",
         "-o",
@@ -230,7 +229,7 @@ def parse_args():
         help="Output path for saving deployed models list."
     )
     eternal_check = eternal_commands.add_parser(
-        'check', help='Check the model format')
+        'check', help='Check the model format.')
     eternal_check.add_argument(
         "--format",
         "-fo",
@@ -266,12 +265,12 @@ def parse_args():
     )
     # Call command
     parser_call = subparsers.add_parser(
-        'call', help='Commands to execute for call operations')
+        'call', help='Commands to execute for call operations.')
     call_commands = parser_call.add_subparsers(
-        dest='subcommand', help="Subcommands to execute for call")
+        dest='subcommand', help="Subcommands to execute for call.")
 
     call_predict = call_commands.add_parser(
-        'predict', help="Call the predict function of a deployed model")
+        'predict', help="Call the predict function of a deployed model.")
     call_predict.add_argument(
         "--input",
         "-i",

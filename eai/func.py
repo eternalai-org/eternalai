@@ -8,6 +8,7 @@ import os
 import requests
 from eai.network_config import NETWORK, COLLECTION_ADDRESS
 from eai.model import Eternal
+from eai.layer_config import KERAS_ACTIVATIONS
 from eai.deployer import ModelDeployer
 from eai.exporter import ModelExporter
 import importlib
@@ -39,7 +40,11 @@ def register(address, name, owner):
         Logger.error(f"An unexpected error occurred: {e}")
 
 
-def transform(model, model_name: str = "Unnamed Model", format="keras3", network_mode: str = None):
+def transform(
+        model,
+        model_name: str = "Unnamed Model",
+        format="keras3",
+        network_mode: str = None):
     assert format in [
         "keras2", "keras3"], "Format must be either 'keras2' or 'keras3'"
     network = network_mode if network_mode is not None else os.environ["NETWORK_MODE"]
@@ -80,11 +85,19 @@ def check_keras_graph(model_data, layers):
         if module == "keras.layers":
             class_name = layer["class_name"]
             layer_config = layer["config"]
-            layer_names.append(class_name)
             if class_name == "BatchNormalization":
                 input_shape = layers[idx].input.shape
-                axis = layer_config["axis"][0]
+                axis = layer_config["axis"]
+                if isinstance(axis, list):
+                    axis = axis[0]
                 layer_config["input_dim"] = input_shape[axis]
+            elif class_name == "Activation":
+                if layer_config["activation"] in KERAS_ACTIVATIONS:
+                    class_name = KERAS_ACTIVATIONS[layer_config["activation"]]
+                else:
+                    raise Exception(
+                        f"Activation {layer_config['activation']} is not supported")
+            layer_names.append(class_name)
             try:
                 module = importlib.import_module("eai.layers")
                 layer_class = getattr(module, class_name)(layer_config)
@@ -196,19 +209,16 @@ def transfer_model(model_id: str, to_address: str, network_mode: str = None):
         ['uint256'], [int(model_id)]))[0]
 
     logger.info("Approving token transfer...")
-    approve_tx_hash = collection_contract.functions.approve(to_address, model_id_uint).transact({
-        "from": from_address
-    })
+    approve_tx_hash = collection_contract.functions.approve(
+        to_address, model_id_uint).transact({"from": from_address})
     approve_receipt = w3.eth.wait_for_transaction_receipt(approve_tx_hash)
     if approve_receipt['status'] != 1:
         raise Exception('tx failed', approve_receipt)
     logger.success(
         f"Approved transfering model with tokenId {model_id_uint} to wallet {to_address} (tx: {approve_tx_hash.hex()})")
-
     logger.info("Transfering token")
-    transfer_tx_hash = collection_contract.functions.safeTransferFrom(from_address, to_address, model_id_uint).transact({
-        "from": from_address
-    })
+    transfer_tx_hash = collection_contract.functions.safeTransferFrom(
+        from_address, to_address, model_id_uint).transact({"from": from_address})
     transfer_receipt = w3.eth.wait_for_transaction_receipt(transfer_tx_hash)
     if transfer_receipt['status'] != 1:
         raise Exception('tx failed', transfer_receipt)
